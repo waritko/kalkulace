@@ -101,7 +101,7 @@ public static class CatalogValidator
             errors["wood"] = ["Dřeviny musí mít jedinečný název a nezáporné ceny."];
         if (data.Items.Any(i => string.IsNullOrWhiteSpace(i.Name) || string.IsNullOrWhiteSpace(i.Unit) || i.UnitPrice < 0 ||
             i.VatRate is not (12 or 21) || i.Category is not ("material" or "labor" or "service" or "finance") ||
-            (i.ServiceCategory is not null && (i.Category != "service" || i.ServiceCategory is not ("transport" or "machinery" or "other"))) ||
+            (i.ServiceCategory is not null && (i.Category != "service" || i.ServiceCategory is not ("transport" or "machinery" or "other")))) ||
             data.Items.Select(i => $"{i.Category}/{i.ServiceCategory}/{i.Name.Trim()}").Distinct(StringComparer.OrdinalIgnoreCase).Count() != data.Items.Count)
             errors["items"] = ["Položky musí mít jedinečný název v kategorii, jednotku, nezápornou cenu a platnou sazbu DPH."];
         return errors;

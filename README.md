@@ -36,6 +36,7 @@ SQLite používá soubor `backend/Data/kalkulace.db` a při prvním spuštění 
 - Materiál, práce, služby a režijní činnosti používají množství × jednotkovou cenu. Režie z materiálu a marže kategorií mají samostatně nastavitelné sazby. Sleva se uplatní na konečnou cenu před DPH.
 - Každá běžná položka může mít sazbu DPH 12 % nebo 21 %. Režie a marže se mezi sazby rozdělují podle hodnoty položek. Režim neplátce počítá nulovou DPH.
 - Výchozí ceny katalogu pocházejí z listů ceníku v sešitu; každou cenu lze na zakázce upravit. Vzor v sešitu s materiálem 50 Kč a fakturací 0,5 hodiny po 600 Kč dává 509,41 Kč včetně DPH.
+- V nabídce **Ceník** lze upravit ceny dřeva podle tloušťky fošny, mechanizace a ostatního materiálu. Změny se ukládají do databáze a použijí se při přidávání nových položek do zakázek. Dříve uložené ceny v zakázkách se samy nemění.
 - Faktura ukládá okamžitý snímek výpočtu. Pozdější úprava zakázky její částku nezmění. Fakturu lze vytisknout nebo uložit jako PDF přes tiskový dialog prohlížeče.
 
 ## Ověření

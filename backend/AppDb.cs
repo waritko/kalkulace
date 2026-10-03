@@ -6,12 +6,19 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
 {
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<CatalogSettings> CatalogSettings => Set<CatalogSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Invoice>().HasIndex(i => i.Number).IsUnique();
         modelBuilder.Entity<Invoice>().HasOne<Project>().WithMany().HasForeignKey(i => i.ProjectId).OnDelete(DeleteBehavior.Cascade);
     }
+}
+
+public class CatalogSettings
+{
+    public int Id { get; set; }
+    public string Payload { get; set; } = "{}";
 }
 
 public class Project
