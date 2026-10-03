@@ -1,0 +1,115 @@
+using System.Text.Json;
+
+namespace Kalkulace.Api;
+
+public record WoodPart(string Name, string WoodType, decimal WidthMm, decimal LengthMm, decimal ThicknessMm, decimal Quantity, decimal PricePerM3, string? Finish);
+public record CostLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, int VatRate, string? ServiceCategory = null);
+public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines);
+public record ProjectListItem(int Id, string Name, string CustomerName, DateTimeOffset UpdatedAt);
+public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, DateTimeOffset UpdatedAt)
+{
+    public static ProjectResponse From(Project project)
+    {
+        var input = JsonSerializer.Deserialize<ProjectInput>(project.Payload)!;
+        return new(project.Id, input, Calculator.Calculate(input), project.UpdatedAt);
+    }
+}
+public record CalculatedLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, decimal Cost, int VatRate, decimal AreaM2, decimal VolumeM3, decimal? BoardThicknessMm);
+public record VatSummary(int Rate, decimal Base, decimal Vat, decimal Total);
+public record Calculation(List<CalculatedLine> Lines, decimal MaterialCost, decimal LaborCost, decimal ServiceCost, decimal FinanceCost, decimal WoodCost, decimal WoodVolumeM3, decimal Overhead, decimal Profit, decimal TotalCost, decimal TotalWithoutVat, decimal TotalVat, decimal TotalWithVat, decimal BudgetDifference, decimal BudgetUsagePercent, List<VatSummary> Vat);
+public record InvoiceRequest(string Number, DateOnly IssuedOn, DateOnly DueOn, string CustomerName, string? CustomerAddress, string SupplierName, string? SupplierAddress, string? SupplierIco, string? SupplierDic, string? BankAccount, string? Note);
+public record InvoiceStatusRequest(string Status);
+public record InvoiceListItem(int Id, int ProjectId, string Number, string CustomerName, DateOnly IssuedOn, DateOnly DueOn, decimal Total, string Status);
+public record InvoiceResponse(int Id, int ProjectId, string Number, DateOnly IssuedOn, DateOnly DueOn, string CustomerName, string CustomerAddress, string SupplierName, string SupplierAddress, string SupplierIco, string SupplierDic, string BankAccount, string Note, string Status, string ProjectName, Calculation Result)
+{
+    public static InvoiceResponse From(Invoice invoice) => new(invoice.Id, invoice.ProjectId, invoice.Number, invoice.IssuedOn, invoice.DueOn, invoice.CustomerName, invoice.CustomerAddress, invoice.SupplierName, invoice.SupplierAddress, invoice.SupplierIco, invoice.SupplierDic, invoice.BankAccount, invoice.Note, invoice.Status, invoice.ProjectName, JsonSerializer.Deserialize<Calculation>(invoice.Snapshot)!);
+}
+
+public static class Validator
+{
+    public static Dictionary<string, string[]> Validate(ProjectInput input)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(input.Name)) errors["name"] = ["Zadejte název zakázky."];
+        if (input.WoodParts is null || input.Lines is null) errors["lines"] = ["Položky musí být zadány jako seznam."];
+        if (input.WoodParts?.Count > 500 || input.Lines?.Count > 1000) errors["lines"] = ["Příliš mnoho položek."];
+        if (input.BudgetLimit < 0) errors["budgetLimit"] = ["Finanční limit musí být nezáporný."];
+        var percents = new[] { input.WoodReservePercent, input.MaterialOverheadPercent, input.MaterialMarginPercent, input.LaborMarginPercent, input.ServiceMarginPercent, input.FinanceMarginPercent, input.DiscountPercent };
+        if (percents.Any(p => p < 0 || p > 100)) errors["percent"] = ["Procenta musí být v rozsahu 0–100."];
+        if (input.WoodParts?.Any(p => string.IsNullOrWhiteSpace(p.Name) || p.WidthMm <= 0 || p.LengthMm <= 0 || p.ThicknessMm <= 0 || p.Quantity <= 0 || p.PricePerM3 < 0) == true) errors["woodParts"] = ["Vyplňte název, kladné rozměry a počet; cena nesmí být záporná."];
+        if (input.Lines?.Any(l => string.IsNullOrWhiteSpace(l.Name) || l.Quantity <= 0 || l.UnitPrice < 0 || l.Category is not ("material" or "labor" or "service" or "finance") || (l.ServiceCategory is not null && (l.Category != "service" || l.ServiceCategory is not ("transport" or "machinery" or "other"))) || l.VatRate is not (12 or 21)) == true) errors["lines"] = ["Položky musí mít název, kladné množství, nezápornou cenu, platnou kategorii a sazbu DPH."];
+        return errors;
+    }
+}
+
+public static class Calculator
+{
+    static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
+    public static Calculation Calculate(ProjectInput input)
+    {
+        var lines = new List<CalculatedLine>();
+        decimal woodVolume = 0;
+        foreach (var part in input.WoodParts)
+        {
+            var area = part.WidthMm * part.LengthMm * part.Quantity / 1_000_000m;
+            var board = part.ThicknessMm < 29 ? 32m : 50m;
+            var volume = area * board / 1000m;
+            woodVolume += volume;
+            lines.Add(new(part.Name, "material", "m³", volume, part.PricePerM3, Round(volume * part.PricePerM3 * (1 + input.WoodReservePercent / 100m)), 21, area, volume, board));
+        }
+        foreach (var line in input.Lines) lines.Add(new(line.Name, line.Category, line.Unit, line.Quantity, line.UnitPrice, Round(line.Quantity * line.UnitPrice), line.VatRate, 0, 0, null));
+
+        var material = lines.Where(l => l.Category == "material").Sum(l => l.Cost);
+        var labor = lines.Where(l => l.Category == "labor").Sum(l => l.Cost);
+        var service = lines.Where(l => l.Category == "service").Sum(l => l.Cost);
+        var finance = lines.Where(l => l.Category == "finance").Sum(l => l.Cost);
+        var overhead = Round(material * input.MaterialOverheadPercent / 100m);
+        var totalCost = material + labor + service + finance + overhead;
+        var profit = Round(material * input.MaterialMarginPercent / 100m + labor * input.LaborMarginPercent / 100m + service * input.ServiceMarginPercent / 100m + finance * input.FinanceMarginPercent / 100m);
+        var rateGroups = lines.GroupBy(l => l.VatRate).ToDictionary(g => g.Key, g => g.Sum(l => l.Cost));
+        var vat = new List<VatSummary>();
+        foreach (var rate in new[] { 12, 21 })
+        {
+            var baseCost = rateGroups.GetValueOrDefault(rate);
+            // Overhead and margin are allocated in proportion to the base costs of each VAT group.
+            var allocation = material + labor + service + finance == 0 ? 0 : (overhead + profit) * baseCost / (material + labor + service + finance);
+            var beforeDiscount = baseCost + allocation;
+            var taxable = Round(beforeDiscount * (1 - input.DiscountPercent / 100m));
+            var tax = input.NonVatPayer ? 0 : Round(taxable * rate / 100m);
+            vat.Add(new(rate, taxable, tax, taxable + tax));
+        }
+        var withoutVat = vat.Sum(v => v.Base);
+        var totalVat = vat.Sum(v => v.Vat);
+        var withVat = withoutVat + totalVat;
+        return new(lines, material, labor, service, finance, lines.Where(l => l.VolumeM3 > 0).Sum(l => l.Cost), woodVolume, overhead, profit, totalCost, withoutVat, totalVat, withVat, input.BudgetLimit - withVat, input.BudgetLimit == 0 ? 0 : Round(withVat / input.BudgetLimit * 100m), vat);
+    }
+}
+
+public record CatalogItem(string Category, string Name, string Unit, decimal UnitPrice, int VatRate, string? ServiceCategory = null);
+public record WoodPrice(string Name, decimal Price32, decimal Price50);
+public record CatalogData(List<WoodPrice> Wood, List<CatalogItem> Items);
+public static class CatalogValidator
+{
+    public static Dictionary<string, string[]> Validate(CatalogData data)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (data.Wood is null || data.Items is null || data.Wood.Count > 500 || data.Items.Count > 1000)
+            errors["catalog"] = ["Neplatný počet položek ceníku."];
+        if (data.Wood is null || data.Items is null) return errors;
+        if (data.Wood.Any(w => string.IsNullOrWhiteSpace(w.Name) || w.Price32 < 0 || w.Price50 < 0) ||
+            data.Wood.Select(w => w.Name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() != data.Wood.Count)
+            errors["wood"] = ["Dřeviny musí mít jedinečný název a nezáporné ceny."];
+        if (data.Items.Any(i => string.IsNullOrWhiteSpace(i.Name) || string.IsNullOrWhiteSpace(i.Unit) || i.UnitPrice < 0 ||
+            i.VatRate is not (12 or 21) || i.Category is not ("material" or "labor" or "service" or "finance") ||
+            (i.ServiceCategory is not null && (i.Category != "service" || i.ServiceCategory is not ("transport" or "machinery" or "other"))) ||
+            data.Items.Select(i => $"{i.Category}/{i.ServiceCategory}/{i.Name.Trim()}").Distinct(StringComparer.OrdinalIgnoreCase).Count() != data.Items.Count)
+            errors["items"] = ["Položky musí mít jedinečný název v kategorii, jednotku, nezápornou cenu a platnou sazbu DPH."];
+        return errors;
+    }
+}
+public static class Catalog
+{
+    public static readonly CatalogData All = new(
+        [new("Dub", 21900, 29900), new("Buk", 11000, 12300), new("Jasan", 13000, 14500), new("Javor", 13000, 14000), new("Smrk", 11500, 12300), new("Jedle", 0, 12100), new("Borovice", 11000, 11500), new("Modřín", 11500, 12500), new("Olše", 10500, 11500), new("Ořešák", 24000, 30500), new("Bříza", 8500, 8900), new("Topol", 8000, 8400), new("Lípa", 10000, 10500), new("Třešeň", 15000, 16000)],
+        [new("material", "Lepidlo", "akce", 50, 21), new("material", "Kolík 8×40", "ks", 0.35m, 21), new("material", "Šroub M6", "ks", 1.5m, 21), new("material", "Insert M6", "ks", 0.5m, 21), new("material", "Osmo", "m²", 37.32m, 21), new("material", "Brusný výsek 150 mm", "ks", 15, 21), new("material", "Brusný výsek houbička", "ks", 8, 21), new("material", "Brusný pás", "ks", 70, 21), new("material", "Houba na povrchovku", "ks", 20, 21), new("labor", "Práce truhláře", "hod", 500, 21), new("labor", "Pomocné práce", "hod", 400, 21), new("service", "Osobní auto", "km", 9, 21, "transport"), new("service", "Dodávka", "km", 17, 21, "transport"), new("service", "Malý vozík", "km", 3, 21, "transport"), new("service", "Pokosová pila", "hod", 30, 21, "machinery"), new("service", "Formátovací pila", "hod", 260, 21, "machinery"), new("service", "Hoblovka", "hod", 140, 21, "machinery"), new("service", "Frézka", "hod", 250, 21, "machinery"), new("finance", "Kalkulace", "hod", 600, 21), new("finance", "Fakturace", "hod", 600, 21), new("finance", "Návrh projektu", "hod", 600, 21)]);
+}
