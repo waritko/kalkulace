@@ -1,5 +1,6 @@
+param([string]$BaseUrl = 'http://127.0.0.1:5080')
 $ErrorActionPreference = 'Stop'
-$base = 'http://127.0.0.1:5080/api'
+$base = "$BaseUrl/api"
 $project = @{
   name = 'Test knihovna'; customerName = 'Test zákazník'; budgetLimit = 1000; nonVatPayer = $false
   woodReservePercent = 0; materialOverheadPercent = 47; materialMarginPercent = 5
@@ -20,7 +21,7 @@ $project.woodParts = @()
 $created = Invoke-RestMethod "$base/projects" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body))
 try {
   $loaded = Invoke-RestMethod "$base/projects/$($created.id)"
-  if ($loaded.input.name -ne $project.name) { throw 'Project did not persist' }
+  if ($loaded.input.name -ne $project.name -or $loaded.input.lines.Count -ne 2 -or $loaded.input.lines[1].quantity -ne 0.5) { throw 'Project did not persist' }
   $listed = @(Invoke-RestMethod "$base/projects")
   if ($created.id -notin $listed.id) { throw 'Project is missing from project list' }
   $invoiceBody = @{

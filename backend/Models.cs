@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace Kalkulace.Api;
 
 public record WoodPart(string Name, string WoodType, decimal WidthMm, decimal LengthMm, decimal ThicknessMm, decimal Quantity, decimal PricePerM3, string? Finish);
@@ -10,7 +8,7 @@ public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, Da
 {
     public static ProjectResponse From(Project project)
     {
-        var input = JsonSerializer.Deserialize<ProjectInput>(project.Payload)!;
+        var input = project.ToInput();
         return new(project.Id, input, Calculator.Calculate(input), project.UpdatedAt);
     }
 }
@@ -22,7 +20,7 @@ public record InvoiceStatusRequest(string Status);
 public record InvoiceListItem(int Id, int ProjectId, string Number, string CustomerName, DateOnly IssuedOn, DateOnly DueOn, decimal Total, string Status);
 public record InvoiceResponse(int Id, int ProjectId, string Number, DateOnly IssuedOn, DateOnly DueOn, string CustomerName, string CustomerAddress, string SupplierName, string SupplierAddress, string SupplierIco, string SupplierDic, string BankAccount, string Note, string Status, string ProjectName, Calculation Result)
 {
-    public static InvoiceResponse From(Invoice invoice) => new(invoice.Id, invoice.ProjectId, invoice.Number, invoice.IssuedOn, invoice.DueOn, invoice.CustomerName, invoice.CustomerAddress, invoice.SupplierName, invoice.SupplierAddress, invoice.SupplierIco, invoice.SupplierDic, invoice.BankAccount, invoice.Note, invoice.Status, invoice.ProjectName, JsonSerializer.Deserialize<Calculation>(invoice.Snapshot)!);
+    public static InvoiceResponse From(Invoice invoice) => new(invoice.Id, invoice.ProjectId, invoice.Number, invoice.IssuedOn, invoice.DueOn, invoice.CustomerName, invoice.CustomerAddress, invoice.SupplierName, invoice.SupplierAddress, invoice.SupplierIco, invoice.SupplierDic, invoice.BankAccount, invoice.Note, invoice.Status, invoice.ProjectName, invoice.ToCalculation());
 }
 
 public static class Validator
