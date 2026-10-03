@@ -82,6 +82,7 @@ public class ProjectCostLine
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public int VatRate { get; set; }
+    public string? MaterialType { get; set; }
     public string? ServiceCategory { get; set; }
     public bool UsesExtraction { get; set; }
     public bool UsesVacuum { get; set; }
@@ -113,6 +114,7 @@ public class CatalogItemRow
     public string Unit { get; set; } = "";
     public decimal UnitPrice { get; set; }
     public int VatRate { get; set; }
+    public string? MaterialType { get; set; }
     public string? ServiceCategory { get; set; }
     public bool UsesExtraction { get; set; }
     public bool UsesVacuum { get; set; }

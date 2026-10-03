@@ -16,6 +16,7 @@ public static class DatabaseUpgrade
     public static async Task InitializeAsync(AppDb db)
     {
         await db.Database.EnsureCreatedAsync();
+        await AddMaterialTypeColumns(db);
         var projectPayload = await HasColumn(db, "Projects", "Payload");
         var invoiceSnapshot = await HasColumn(db, "Invoices", "Snapshot");
         var catalogExists = await HasTable(db, "CatalogSettings");
@@ -32,6 +33,7 @@ public static class DatabaseUpgrade
             else if (NewTables.Contains(indexedTable) && !await HasIndex(db, statement))
                 await db.Database.ExecuteSqlRawAsync(statement);
         }
+        await AddMaterialTypeColumns(db);
 
         var projects = projectPayload ? await ReadLegacy(db, "SELECT Id, Payload FROM Projects") : [];
         var invoices = invoiceSnapshot ? await ReadLegacy(db, "SELECT Id, Snapshot FROM Invoices") : [];
@@ -67,6 +69,14 @@ public static class DatabaseUpgrade
         if (projectPayload) await db.Database.ExecuteSqlRawAsync("ALTER TABLE Projects DROP COLUMN Payload");
         if (invoiceSnapshot) await db.Database.ExecuteSqlRawAsync("ALTER TABLE Invoices DROP COLUMN Snapshot");
         if (catalogExists) await db.Database.ExecuteSqlRawAsync("DROP TABLE CatalogSettings");
+    }
+
+    private static async Task AddMaterialTypeColumns(AppDb db)
+    {
+        if (await HasTable(db, "ProjectCostLine") && !await HasColumn(db, "ProjectCostLine", "MaterialType"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectCostLine ADD COLUMN MaterialType TEXT NULL");
+        if (await HasTable(db, "CatalogItemRow") && !await HasColumn(db, "CatalogItemRow", "MaterialType"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE CatalogItemRow ADD COLUMN MaterialType TEXT NULL");
     }
 
     private static async Task<bool> HasColumn(AppDb db, string table, string column)

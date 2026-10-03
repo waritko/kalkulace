@@ -53,9 +53,9 @@ app.MapPut("/api/catalog", async (CatalogData data, AppDb db) =>
 {
     var errors = CatalogValidator.Validate(data);
     if (errors.Count > 0) return Results.ValidationProblem(errors);
-    var normalized = MachineryCharges.EnsurePresent(new CatalogData(
+    var normalized = MachineryCharges.EnsurePresent(MaterialTypes.EnsurePresent(new CatalogData(
         data.Wood.Select(w => w with { Name = w.Name.Trim() }).ToList(),
-        data.Items.Select(i => i with { Name = i.Name.Trim(), Unit = i.Unit.Trim() }).ToList()));
+        data.Items.Select(i => i with { Name = i.Name.Trim(), Unit = i.Unit.Trim() }).ToList())));
     var settings = await db.CatalogStates.AsSplitQuery().Include(s => s.Wood).Include(s => s.Items).SingleOrDefaultAsync(s => s.Id == 1);
     await using var transaction = await db.Database.BeginTransactionAsync();
     if (settings is null) { settings = new CatalogState { Id = 1 }; db.CatalogStates.Add(settings); }
@@ -154,7 +154,7 @@ app.Run();
 static async Task<CatalogData> LoadCatalog(AppDb db)
 {
     var settings = await db.CatalogStates.AsNoTracking().AsSplitQuery().Include(s => s.Wood).Include(s => s.Items).SingleOrDefaultAsync(s => s.Id == 1);
-    return MachineryCharges.EnsurePresent(settings is null ? Catalog.All : settings.ToData());
+    return MachineryCharges.EnsurePresent(MaterialTypes.EnsurePresent(settings is null ? Catalog.All : settings.ToData()));
 }
 
 static Task<Project?> LoadProject(AppDb db, int id) => db.Projects

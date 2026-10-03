@@ -1,7 +1,7 @@
 namespace Kalkulace.Api;
 
 public record WoodPart(string Name, string WoodType, decimal WidthMm, decimal LengthMm, decimal ThicknessMm, decimal Quantity, decimal PricePerM3, string? Finish);
-public record CostLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false, string? AutomaticMachineryCharge = null);
+public record CostLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false, string? AutomaticMachineryCharge = null, string? MaterialType = null);
 public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines);
 public record ProjectListItem(int Id, string Name, string CustomerName, DateTimeOffset UpdatedAt);
 public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, DateTimeOffset UpdatedAt)
@@ -35,7 +35,7 @@ public static class Validator
         var percents = new[] { input.WoodReservePercent, input.MaterialOverheadPercent, input.MaterialMarginPercent, input.LaborMarginPercent, input.ServiceMarginPercent, input.FinanceMarginPercent, input.DiscountPercent };
         if (percents.Any(p => p < 0 || p > 100)) errors["percent"] = ["Procenta musí být v rozsahu 0–100."];
         if (input.WoodParts?.Any(p => string.IsNullOrWhiteSpace(p.Name) || p.WidthMm <= 0 || p.LengthMm <= 0 || p.ThicknessMm <= 0 || p.Quantity <= 0 || p.PricePerM3 < 0) == true) errors["woodParts"] = ["Vyplňte název, kladné rozměry a počet; cena nesmí být záporná."];
-        if (input.Lines?.Any(l => string.IsNullOrWhiteSpace(l.Name) || l.Quantity <= 0 || l.UnitPrice < 0 || l.Category is not ("material" or "labor" or "service" or "finance") || (l.ServiceCategory is not null && (l.Category != "service" || l.ServiceCategory is not ("transport" or "machinery" or "other"))) || l.VatRate is not (12 or 21) || ((l.UsesExtraction || l.UsesVacuum || l.AutomaticMachineryCharge is not null) && (l.Category != "service" || l.ServiceCategory != "machinery")) || (l.AutomaticMachineryCharge is not null && l.AutomaticMachineryCharge is not (MachineryCharges.Extraction or MachineryCharges.Vacuum))) == true) errors["lines"] = ["Položky musí mít název, kladné množství, nezápornou cenu, platnou kategorii a sazbu DPH."];
+        if (input.Lines?.Any(l => string.IsNullOrWhiteSpace(l.Name) || l.Quantity <= 0 || l.UnitPrice < 0 || l.Category is not ("material" or "labor" or "service" or "finance") || (l.MaterialType is not null && (l.Category != "material" || l.MaterialType is not ("fastener" or "finish" or "abrasive"))) || (l.ServiceCategory is not null && (l.Category != "service" || l.ServiceCategory is not ("transport" or "machinery" or "other"))) || l.VatRate is not (12 or 21) || ((l.UsesExtraction || l.UsesVacuum || l.AutomaticMachineryCharge is not null) && (l.Category != "service" || l.ServiceCategory != "machinery")) || (l.AutomaticMachineryCharge is not null && l.AutomaticMachineryCharge is not (MachineryCharges.Extraction or MachineryCharges.Vacuum))) == true) errors["lines"] = ["Položky musí mít název, kladné množství, nezápornou cenu, platnou kategorii a sazbu DPH."];
         return errors;
     }
 }
@@ -83,9 +83,23 @@ public static class Calculator
     }
 }
 
-public record CatalogItem(string Category, string Name, string Unit, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false);
+public record CatalogItem(string Category, string Name, string Unit, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false, string? MaterialType = null);
 public record WoodPrice(string Name, decimal Price32, decimal Price50);
 public record CatalogData(List<WoodPrice> Wood, List<CatalogItem> Items);
+public static class MaterialTypes
+{
+    public static string Infer(string name) => name switch
+    {
+        "Osmo" or "Houba na povrchovku" => "finish",
+        "Brusný výsek 150 mm" or "Brusný výsek houbička" or "Brusný pás" => "abrasive",
+        _ => "fastener"
+    };
+    public static CatalogData EnsurePresent(CatalogData data) => data with
+    {
+        Items = data.Items.Select(item => item.Category == "material" && item.MaterialType is null
+            ? item with { MaterialType = Infer(item.Name) } : item).ToList()
+    };
+}
 public static class MachineryCharges
 {
     public const string Extraction = "Odsávání";
@@ -133,6 +147,7 @@ public static class CatalogValidator
         if (data.Items.Any(i => string.IsNullOrWhiteSpace(i.Name) || string.IsNullOrWhiteSpace(i.Unit) || i.UnitPrice < 0 ||
             i.VatRate is not (12 or 21) || i.Category is not ("material" or "labor" or "service" or "finance") ||
             (i.ServiceCategory is not null && (i.Category != "service" || i.ServiceCategory is not ("transport" or "machinery" or "other"))) ||
+            (i.MaterialType is not null && (i.Category != "material" || i.MaterialType is not ("fastener" or "finish" or "abrasive"))) ||
             ((i.UsesExtraction || i.UsesVacuum) && (i.Category != "service" || i.ServiceCategory != "machinery" || i.Name is MachineryCharges.Extraction or MachineryCharges.Vacuum))) ||
             data.Items.Select(i => $"{i.Category}/{i.ServiceCategory}/{i.Name.Trim()}").Distinct(StringComparer.OrdinalIgnoreCase).Count() != data.Items.Count)
             errors["items"] = ["Položky musí mít jedinečný název v kategorii, jednotku, nezápornou cenu a platnou sazbu DPH."];

@@ -11,7 +11,7 @@ public static class EntityMapping
             project.WoodParts.OrderBy(p => p.Position).Select(p => new WoodPart(p.Name, p.WoodType, p.WidthMm,
                 p.LengthMm, p.ThicknessMm, p.Quantity, p.PricePerM3, p.Finish)).ToList(),
             project.Lines.OrderBy(l => l.Position).Select(l => new CostLine(l.Name, l.Category, l.Unit, l.Quantity,
-                l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge)).ToList());
+                l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType)).ToList());
     }
 
     public static void SetInput(this Project project, ProjectInput input)
@@ -38,7 +38,7 @@ public static class EntityMapping
         {
             ProjectId = project.Id, Position = n, Name = l.Name, Category = l.Category, Unit = l.Unit,
             Quantity = l.Quantity, UnitPrice = l.UnitPrice, VatRate = l.VatRate, ServiceCategory = l.ServiceCategory,
-            UsesExtraction = l.UsesExtraction, UsesVacuum = l.UsesVacuum, AutomaticMachineryCharge = l.AutomaticMachineryCharge
+            UsesExtraction = l.UsesExtraction, UsesVacuum = l.UsesVacuum, AutomaticMachineryCharge = l.AutomaticMachineryCharge, MaterialType = l.MaterialType
         }).ToList();
     }
 
@@ -79,7 +79,7 @@ public static class EntityMapping
     public static CatalogData ToData(this CatalogState state) => new(
         state.Wood.OrderBy(w => w.Position).Select(w => new WoodPrice(w.Name, w.Price32, w.Price50)).ToList(),
         state.Items.OrderBy(i => i.Position).Select(i => new CatalogItem(i.Category, i.Name, i.Unit, i.UnitPrice,
-            i.VatRate, i.ServiceCategory, i.UsesExtraction, i.UsesVacuum)).ToList());
+            i.VatRate, i.ServiceCategory, i.UsesExtraction, i.UsesVacuum, i.MaterialType)).ToList());
 
     public static void SetData(this CatalogState state, CatalogData data)
     {
@@ -91,7 +91,7 @@ public static class EntityMapping
         {
             CatalogStateId = state.Id, Position = n, Category = i.Category, Name = i.Name, Unit = i.Unit,
             UnitPrice = i.UnitPrice, VatRate = i.VatRate, ServiceCategory = i.ServiceCategory,
-            UsesExtraction = i.UsesExtraction, UsesVacuum = i.UsesVacuum
+            UsesExtraction = i.UsesExtraction, UsesVacuum = i.UsesVacuum, MaterialType = i.MaterialType
         }).ToList();
     }
 }
