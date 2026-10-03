@@ -53,16 +53,15 @@ using (var scope = app.Services.CreateScope())
 
 app.MapGet("/api/catalog", async (AppDb db) =>
 {
-    var settings = await db.CatalogSettings.FindAsync(1);
-    return settings is null ? Catalog.All : JsonSerializer.Deserialize<CatalogData>(settings.Payload)!;
+    return await LoadCatalog(db);
 });
 app.MapPut("/api/catalog", async (CatalogData data, AppDb db) =>
 {
     var errors = CatalogValidator.Validate(data);
     if (errors.Count > 0) return Results.ValidationProblem(errors);
-    var normalized = new CatalogData(
+    var normalized = MachineryCharges.EnsurePresent(new CatalogData(
         data.Wood.Select(w => w with { Name = w.Name.Trim() }).ToList(),
-        data.Items.Select(i => i with { Name = i.Name.Trim(), Unit = i.Unit.Trim() }).ToList());
+        data.Items.Select(i => i with { Name = i.Name.Trim(), Unit = i.Unit.Trim() }).ToList()));
     var settings = await db.CatalogSettings.FindAsync(1);
     if (settings is null) db.CatalogSettings.Add(new CatalogSettings { Id = 1, Payload = JsonSerializer.Serialize(normalized) });
     else settings.Payload = JsonSerializer.Serialize(normalized);
@@ -78,6 +77,7 @@ app.MapPost("/api/projects", async (ProjectInput input, AppDb db) =>
 {
     var errors = Validator.Validate(input);
     if (errors.Count > 0) return Results.ValidationProblem(errors);
+    input = MachineryCharges.Sync(input, await LoadCatalog(db));
     var project = new Project { Name = input.Name.Trim(), CustomerName = input.CustomerName?.Trim() ?? "", Payload = JsonSerializer.Serialize(input), UpdatedAt = DateTimeOffset.UtcNow };
     db.Projects.Add(project);
     await db.SaveChangesAsync();
@@ -92,6 +92,7 @@ app.MapPut("/api/projects/{id:int}", async (int id, ProjectInput input, AppDb db
 {
     var errors = Validator.Validate(input);
     if (errors.Count > 0) return Results.ValidationProblem(errors);
+    input = MachineryCharges.Sync(input, await LoadCatalog(db));
     var project = await db.Projects.FindAsync(id);
     if (project is null) return Results.NotFound();
     project.Name = input.Name.Trim();
@@ -109,10 +110,10 @@ app.MapDelete("/api/projects/{id:int}", async (int id, AppDb db) =>
     await db.SaveChangesAsync();
     return Results.NoContent();
 });
-app.MapPost("/api/calculate", (ProjectInput input) =>
+app.MapPost("/api/calculate", async (ProjectInput input, AppDb db) =>
 {
     var errors = Validator.Validate(input);
-    return errors.Count > 0 ? Results.ValidationProblem(errors) : Results.Ok(Calculator.Calculate(input));
+    return errors.Count > 0 ? Results.ValidationProblem(errors) : Results.Ok(Calculator.Calculate(MachineryCharges.Sync(input, await LoadCatalog(db))));
 });
 app.MapGet("/api/invoices", async (AppDb db) => await db.Invoices.OrderByDescending(i => i.IssuedOn).ThenByDescending(i => i.Id).Select(i => new InvoiceListItem(i.Id, i.ProjectId, i.Number, i.CustomerName, i.IssuedOn, i.DueOn, i.Total, i.Status)).ToListAsync());
 app.MapGet("/api/invoices/{id:int}", async (int id, AppDb db) =>
@@ -143,5 +144,11 @@ app.MapPatch("/api/invoices/{id:int}/status", async (int id, InvoiceStatusReques
     return Results.Ok(InvoiceResponse.From(invoice));
 });
 app.Run();
+
+static async Task<CatalogData> LoadCatalog(AppDb db)
+{
+    var settings = await db.CatalogSettings.FindAsync(1);
+    return MachineryCharges.EnsurePresent(settings is null ? Catalog.All : JsonSerializer.Deserialize<CatalogData>(settings.Payload)!);
+}
 
 public partial class Program { }

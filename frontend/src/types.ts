@@ -1,13 +1,13 @@
 export type Category = 'material' | 'labor' | 'service' | 'finance'
 export type ServiceCategory = 'transport' | 'machinery' | 'other'
 export type WoodPart = { name: string; woodType: string; widthMm: number; lengthMm: number; thicknessMm: number; quantity: number; pricePerM3: number; finish: string }
-export type CostLine = { name: string; category: Category; unit: string; quantity: number; unitPrice: number; vatRate: number; serviceCategory?: ServiceCategory | null }
+export type CostLine = { name: string; category: Category; unit: string; quantity: number; unitPrice: number; vatRate: number; serviceCategory?: ServiceCategory | null; usesExtraction?: boolean; usesVacuum?: boolean; automaticMachineryCharge?: 'Odsávání' | 'Vysavač' | null }
 export type ProjectInput = { name: string; customerName: string; budgetLimit: number; nonVatPayer: boolean; woodReservePercent: number; materialOverheadPercent: number; materialMarginPercent: number; laborMarginPercent: number; serviceMarginPercent: number; financeMarginPercent: number; discountPercent: number; woodParts: WoodPart[]; lines: CostLine[] }
 export type CalculatedLine = { name: string; category: Category; unit: string; quantity: number; unitPrice: number; cost: number; vatRate: number; areaM2: number; volumeM3: number; boardThicknessMm: number | null }
 export type Calculation = { lines: CalculatedLine[]; materialCost: number; laborCost: number; serviceCost: number; financeCost: number; woodCost: number; woodVolumeM3: number; overhead: number; profit: number; totalCost: number; totalWithoutVat: number; totalVat: number; totalWithVat: number; budgetDifference: number; budgetUsagePercent: number; vat: { rate: number; base: number; vat: number; total: number }[] }
 export type Project = { id: number; input: ProjectInput; result: Calculation; updatedAt: string }
 export type ProjectListItem = { id: number; name: string; customerName: string; updatedAt: string }
-export type Catalog = { wood: { name: string; price32: number; price50: number }[]; items: { category: Category; name: string; unit: string; unitPrice: number; vatRate: number; serviceCategory?: ServiceCategory | null }[] }
+export type Catalog = { wood: { name: string; price32: number; price50: number }[]; items: { category: Category; name: string; unit: string; unitPrice: number; vatRate: number; serviceCategory?: ServiceCategory | null; usesExtraction?: boolean; usesVacuum?: boolean }[] }
 export type InvoiceListItem = { id: number; projectId: number; number: string; customerName: string; issuedOn: string; dueOn: string; total: number; status: string }
 export type Invoice = InvoiceListItem & { customerAddress: string; supplierName: string; supplierAddress: string; supplierIco: string; supplierDic: string; bankAccount: string; note: string; projectName: string; result: Calculation }
 export type InvoiceRequest = { number: string; issuedOn: string; dueOn: string; customerName: string; customerAddress: string; supplierName: string; supplierAddress: string; supplierIco: string; supplierDic: string; bankAccount: string; note: string }
