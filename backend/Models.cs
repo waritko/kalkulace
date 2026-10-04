@@ -53,11 +53,54 @@ public static class Calculator
     static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
     public static Calculation Calculate(ProjectInput input)
     {
+        var glueBoardPurchase = new List<GlueBoardPurchaseItem>();
+        var lamellaLengths = new decimal[input.WoodParts.Count];
+        foreach (var group in input.WoodParts.Select((part, index) => (part, index))
+            .GroupBy(entry => (WoodType: entry.part.WoodType.Trim(), entry.part.ThicknessMm)))
+        {
+            // Work from the longest piece down. Every piece in a row stays within the
+            // tolerance of the row's purchasing length, including at cluster boundaries.
+            foreach (var (part, index) in group.OrderByDescending(entry => Math.Max(entry.part.WidthMm, entry.part.LengthMm)))
+            {
+                var length = Math.Max(part.WidthMm, part.LengthMm) + input.LamellaLengthExtraMm;
+                var width = Math.Min(part.WidthMm, part.LengthMm) * part.Quantity;
+                var row = glueBoardPurchase.FindIndex(item => item.WoodType == group.Key.WoodType &&
+                    item.ThicknessMm == group.Key.ThicknessMm && item.LamellaLengthMm - length <= input.LamellaMergeToleranceMm && item.LamellaLengthMm >= length);
+                if (row < 0) glueBoardPurchase.Add(new(group.Key.WoodType, group.Key.ThicknessMm, length, width));
+                else glueBoardPurchase[row] = glueBoardPurchase[row] with { TotalWidthMm = glueBoardPurchase[row].TotalWidthMm + width };
+                lamellaLengths[index] = row < 0 ? length : glueBoardPurchase[row].LamellaLengthMm;
+            }
+        }
+        var rawWidths = glueBoardPurchase.ToDictionary(item => (item.WoodType, item.ThicknessMm, item.LamellaLengthMm), item => item.TotalWidthMm);
+        glueBoardPurchase = glueBoardPurchase
+            .Select(item => item with { TotalWidthMm = Math.Ceiling(item.TotalWidthMm * (1 + input.GlueBoardWastePercent / 100m)) })
+            .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(item => item.ThicknessMm)
+            .ThenByDescending(item => item.LamellaLengthMm)
+            .ToList();
+        var woodPurchase = glueBoardPurchase
+            .GroupBy(item => (item.WoodType, BoardThicknessMm: item.ThicknessMm < 29 ? 32m : 50m))
+            .Select(group =>
+            {
+                var area = group.Sum(item => item.LamellaLengthMm * item.TotalWidthMm / 1_000_000m);
+                return new WoodPurchaseItem(group.Key.WoodType, group.Key.BoardThicknessMm, area,
+                    area * group.Key.BoardThicknessMm / 1000m,
+                    Math.Ceiling(area / 3m * 10m) * 10m,
+                    Math.Ceiling(area / 4m * 10m) * 10m);
+            })
+            .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(item => item.BoardThicknessMm)
+            .ToList();
+        var purchasedWidths = glueBoardPurchase.ToDictionary(item => (item.WoodType, item.ThicknessMm, item.LamellaLengthMm), item => item.TotalWidthMm);
         var lines = new List<CalculatedLine>();
         decimal woodVolume = 0;
-        foreach (var part in input.WoodParts)
+        for (var index = 0; index < input.WoodParts.Count; index++)
         {
-            var area = part.WidthMm * part.LengthMm * part.Quantity / 1_000_000m;
+            var part = input.WoodParts[index];
+            var length = lamellaLengths[index];
+            var key = (part.WoodType.Trim(), part.ThicknessMm, length);
+            var area = length * Math.Min(part.WidthMm, part.LengthMm) * part.Quantity / 1_000_000m
+                * purchasedWidths[key] / rawWidths[key];
             var board = part.ThicknessMm < 29 ? 32m : 50m;
             var volume = area * board / 1000m;
             woodVolume += volume;
@@ -87,40 +130,6 @@ public static class Calculator
         var withoutVat = vat.Sum(v => v.Base);
         var totalVat = vat.Sum(v => v.Vat);
         var withVat = withoutVat + totalVat;
-        var glueBoardPurchase = new List<GlueBoardPurchaseItem>();
-        foreach (var group in input.WoodParts.GroupBy(part => (WoodType: part.WoodType.Trim(), part.ThicknessMm)))
-        {
-            // Work from the longest piece down. Every piece in a row stays within the
-            // tolerance of the row's purchasing length, including at cluster boundaries.
-            foreach (var part in group.OrderByDescending(part => Math.Max(part.WidthMm, part.LengthMm)))
-            {
-                var length = Math.Max(part.WidthMm, part.LengthMm) + input.LamellaLengthExtraMm;
-                var width = Math.Min(part.WidthMm, part.LengthMm) * part.Quantity;
-                var row = glueBoardPurchase.FindIndex(item => item.WoodType == group.Key.WoodType &&
-                    item.ThicknessMm == group.Key.ThicknessMm && item.LamellaLengthMm - length <= input.LamellaMergeToleranceMm && item.LamellaLengthMm >= length);
-                if (row < 0) glueBoardPurchase.Add(new(group.Key.WoodType, group.Key.ThicknessMm, length, width));
-                else glueBoardPurchase[row] = glueBoardPurchase[row] with { TotalWidthMm = glueBoardPurchase[row].TotalWidthMm + width };
-            }
-        }
-        glueBoardPurchase = glueBoardPurchase
-            .Select(item => item with { TotalWidthMm = Math.Ceiling(item.TotalWidthMm * (1 + input.GlueBoardWastePercent / 100m)) })
-            .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(item => item.ThicknessMm)
-            .ThenByDescending(item => item.LamellaLengthMm)
-            .ToList();
-        var woodPurchase = glueBoardPurchase
-            .GroupBy(item => (item.WoodType, BoardThicknessMm: item.ThicknessMm < 29 ? 32m : 50m))
-            .Select(group =>
-            {
-                var area = group.Sum(item => item.LamellaLengthMm * item.TotalWidthMm / 1_000_000m);
-                return new WoodPurchaseItem(group.Key.WoodType, group.Key.BoardThicknessMm, area,
-                    area * group.Key.BoardThicknessMm / 1000m,
-                    Math.Ceiling(area / 3m * 10m) * 10m,
-                    Math.Ceiling(area / 4m * 10m) * 10m);
-            })
-            .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(item => item.BoardThicknessMm)
-            .ToList();
         return new(lines, material, labor, service, finance, lines.Where(l => l.VolumeM3 > 0).Sum(l => l.Cost), woodVolume, overhead, profit, totalCost, withoutVat, totalVat, withVat, input.BudgetLimit - withVat, input.BudgetLimit == 0 ? 0 : Round(withVat / input.BudgetLimit * 100m), vat)
         { WoodPurchase = woodPurchase, GlueBoardPurchase = glueBoardPurchase };
     }
