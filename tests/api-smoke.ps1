@@ -32,14 +32,14 @@ $project.lamellaMergeToleranceMm = 50
 $project.glueBoardWastePercent = 10
 $project.woodParts = @(
   @{ name = 'Dlouhý'; woodType = 'Dub'; widthMm = 400; lengthMm = 1000; thicknessMm = 25; quantity = 2; pricePerM3 = 21900; finish = '' },
-  @{ name = 'Blízký'; woodType = 'Dub'; widthMm = 300; lengthMm = 950; thicknessMm = 25; quantity = 1; pricePerM3 = 21900; finish = '' },
+  @{ name = 'Blízký'; woodType = 'Dub'; widthMm = 300; lengthMm = 950; thicknessMm = 27; quantity = 1; pricePerM3 = 21900; finish = '' },
   @{ name = 'Další'; woodType = 'Dub'; widthMm = 200; lengthMm = 900; thicknessMm = 25; quantity = 1; pricePerM3 = 21900; finish = '' },
   @{ name = 'Otočený'; woodType = 'Buk'; widthMm = 1200; lengthMm = 150; thicknessMm = 30; quantity = 1; pricePerM3 = 11000; finish = '' }
 )
 $glue = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($project | ConvertTo-Json -Depth 10)))
 $oakGlue = @($glue.glueBoardPurchase | Where-Object woodType -eq 'Dub')
 $beechGlue = @($glue.glueBoardPurchase | Where-Object woodType -eq 'Buk')
-if ($oakGlue.Count -ne 2 -or $oakGlue[0].lamellaLengthMm -ne 1050 -or $oakGlue[0].totalWidthMm -ne 1210 -or $oakGlue[1].lamellaLengthMm -ne 950 -or $oakGlue[1].totalWidthMm -ne 220 -or $beechGlue[0].lamellaLengthMm -ne 1250 -or $beechGlue[0].totalWidthMm -ne 165) { throw 'Glue board grouping, orientation or waste mismatch' }
+if ($oakGlue.Count -ne 2 -or $oakGlue[0].boardThicknessMm -ne 32 -or $oakGlue[0].lamellaLengthMm -ne 1050 -or $oakGlue[0].totalWidthMm -ne 1210 -or $oakGlue[1].lamellaLengthMm -ne 950 -or $oakGlue[1].totalWidthMm -ne 220 -or $beechGlue[0].boardThicknessMm -ne 50 -or $beechGlue[0].lamellaLengthMm -ne 1250 -or $beechGlue[0].totalWidthMm -ne 165) { throw 'Glue board grouping, orientation or waste mismatch' }
 if ($glue.woodVolumeM3 -ne (($glue.woodPurchase | Measure-Object -Property volumeM3 -Sum).Sum)) { throw 'Costed wood quantity must equal lamella purchase volume' }
 $oakBoards = @($glue.woodPurchase | Where-Object { $_.woodType -eq 'Dub' -and $_.boardThicknessMm -eq 32 })
 if ($oakBoards.Count -ne 1 -or $oakBoards[0].areaM2 -ne 1.4795 -or $oakBoards[0].volumeM3 -ne 0.047344 -or $oakBoards[0].width3mCm -ne 50 -or $oakBoards[0].width4mCm -ne 40) { throw 'Wood purchase must use grouped lamellas including waste' }
