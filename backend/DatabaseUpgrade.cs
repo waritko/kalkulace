@@ -17,6 +17,7 @@ public static class DatabaseUpgrade
     {
         await db.Database.EnsureCreatedAsync();
         await AddMaterialTypeColumns(db);
+        await AddFinishColumns(db);
         var projectPayload = await HasColumn(db, "Projects", "Payload");
         var invoiceSnapshot = await HasColumn(db, "Invoices", "Snapshot");
         var catalogExists = await HasTable(db, "CatalogSettings");
@@ -34,6 +35,7 @@ public static class DatabaseUpgrade
                 await db.Database.ExecuteSqlRawAsync(statement);
         }
         await AddMaterialTypeColumns(db);
+        await AddFinishColumns(db);
 
         var projects = projectPayload ? await ReadLegacy(db, "SELECT Id, Payload FROM Projects") : [];
         var invoices = invoiceSnapshot ? await ReadLegacy(db, "SELECT Id, Snapshot FROM Invoices") : [];
@@ -77,6 +79,20 @@ public static class DatabaseUpgrade
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectCostLine ADD COLUMN MaterialType TEXT NULL");
         if (await HasTable(db, "CatalogItemRow") && !await HasColumn(db, "CatalogItemRow", "MaterialType"))
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE CatalogItemRow ADD COLUMN MaterialType TEXT NULL");
+    }
+
+    private static async Task AddFinishColumns(AppDb db)
+    {
+        if (await HasTable(db, "ProjectWoodPart") && !await HasColumn(db, "ProjectWoodPart", "ApplyFinish"))
+        {
+            if (db.Database.IsSqlite()) await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectWoodPart ADD COLUMN ApplyFinish INTEGER NOT NULL DEFAULT 0");
+            else await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectWoodPart ADD COLUMN ApplyFinish tinyint(1) NOT NULL DEFAULT 0");
+        }
+        if (await HasTable(db, "ProjectCostLine") && !await HasColumn(db, "ProjectCostLine", "AutomaticFinish"))
+        {
+            if (db.Database.IsSqlite()) await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectCostLine ADD COLUMN AutomaticFinish INTEGER NOT NULL DEFAULT 0");
+            else await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectCostLine ADD COLUMN AutomaticFinish tinyint(1) NOT NULL DEFAULT 0");
+        }
     }
 
     private static async Task<bool> HasColumn(AppDb db, string table, string column)

@@ -9,9 +9,9 @@ public static class EntityMapping
             d.MaterialOverheadPercent, d.MaterialMarginPercent, d.LaborMarginPercent, d.ServiceMarginPercent,
             d.FinanceMarginPercent, d.DiscountPercent,
             project.WoodParts.OrderBy(p => p.Position).Select(p => new WoodPart(p.Name, p.WoodType, p.WidthMm,
-                p.LengthMm, p.ThicknessMm, p.Quantity, p.PricePerM3, p.Finish)).ToList(),
+                p.LengthMm, p.ThicknessMm, p.Quantity, p.PricePerM3, p.Finish, p.ApplyFinish)).ToList(),
             project.Lines.OrderBy(l => l.Position).Select(l => new CostLine(l.Name, l.Category, l.Unit, l.Quantity,
-                l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType)).ToList());
+                l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType, l.AutomaticFinish)).ToList());
     }
 
     public static void SetInput(this Project project, ProjectInput input)
@@ -32,13 +32,13 @@ public static class EntityMapping
         {
             ProjectId = project.Id, Position = n, Name = p.Name, WoodType = p.WoodType, WidthMm = p.WidthMm,
             LengthMm = p.LengthMm, ThicknessMm = p.ThicknessMm, Quantity = p.Quantity, PricePerM3 = p.PricePerM3,
-            Finish = p.Finish
+            Finish = p.Finish, ApplyFinish = p.ApplyFinish
         }).ToList();
         project.Lines = input.Lines.Select((l, n) => new ProjectCostLine
         {
             ProjectId = project.Id, Position = n, Name = l.Name, Category = l.Category, Unit = l.Unit,
             Quantity = l.Quantity, UnitPrice = l.UnitPrice, VatRate = l.VatRate, ServiceCategory = l.ServiceCategory,
-            UsesExtraction = l.UsesExtraction, UsesVacuum = l.UsesVacuum, AutomaticMachineryCharge = l.AutomaticMachineryCharge, MaterialType = l.MaterialType
+            UsesExtraction = l.UsesExtraction, UsesVacuum = l.UsesVacuum, AutomaticMachineryCharge = l.AutomaticMachineryCharge, MaterialType = l.MaterialType, AutomaticFinish = l.AutomaticFinish
         }).ToList();
     }
 

@@ -70,6 +70,7 @@ public class ProjectWoodPart
     public decimal Quantity { get; set; }
     public decimal PricePerM3 { get; set; }
     public string? Finish { get; set; }
+    public bool ApplyFinish { get; set; }
 }
 
 public class ProjectCostLine
@@ -87,6 +88,7 @@ public class ProjectCostLine
     public bool UsesExtraction { get; set; }
     public bool UsesVacuum { get; set; }
     public string? AutomaticMachineryCharge { get; set; }
+    public bool AutomaticFinish { get; set; }
 }
 
 public class CatalogState

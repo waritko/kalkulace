@@ -20,6 +20,11 @@ $project.woodParts = @(@{ name = 'Police'; woodType = 'Dub'; widthMm = 500; leng
 $wood = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($project | ConvertTo-Json -Depth 10)))
 if ($wood.woodVolumeM3 -ne 0.032 -or $wood.woodCost -ne 700.8) { throw "Wood calculation mismatch: $($wood.woodVolumeM3) m3, $($wood.woodCost) CZK" }
 if ($wood.lines.Count -ne 3 -or $wood.lines[0].quantity -ne 0.032) { throw 'Wood volume must come from parts without a duplicate cost line' }
+$project.woodParts[0].applyFinish = $true
+$finished = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($project | ConvertTo-Json -Depth 10)))
+$finishLine = @($finished.lines | Where-Object name -eq 'Osmo')
+if ($finishLine.Count -ne 1 -or $finishLine[0].quantity -ne 2.2 -or $finishLine[0].cost -ne 82.1) { throw 'Automatic finish quantity or cost mismatch' }
+$project.woodParts[0].applyFinish = $false
 $project.woodParts = @()
 $created = Invoke-RestMethod "$base/projects" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body))
 try {

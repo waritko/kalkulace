@@ -79,7 +79,8 @@ app.MapPost("/api/projects", async (ProjectInput input, AppDb db) =>
 {
     var errors = Validator.Validate(input);
     if (errors.Count > 0) return Results.ValidationProblem(errors);
-    input = MachineryCharges.Sync(input, await LoadCatalog(db));
+    var catalog = await LoadCatalog(db);
+    input = FinishCharges.Sync(MachineryCharges.Sync(input, catalog), catalog);
     var project = new Project { UpdatedAt = DateTimeOffset.UtcNow };
     project.SetInput(input);
     db.Projects.Add(project);
@@ -95,7 +96,8 @@ app.MapPut("/api/projects/{id:int}", async (int id, ProjectInput input, AppDb db
 {
     var errors = Validator.Validate(input);
     if (errors.Count > 0) return Results.ValidationProblem(errors);
-    input = MachineryCharges.Sync(input, await LoadCatalog(db));
+    var catalog = await LoadCatalog(db);
+    input = FinishCharges.Sync(MachineryCharges.Sync(input, catalog), catalog);
     var project = await LoadProject(db, id);
     if (project is null) return Results.NotFound();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -119,7 +121,9 @@ app.MapDelete("/api/projects/{id:int}", async (int id, AppDb db) =>
 app.MapPost("/api/calculate", async (ProjectInput input, AppDb db) =>
 {
     var errors = Validator.Validate(input);
-    return errors.Count > 0 ? Results.ValidationProblem(errors) : Results.Ok(Calculator.Calculate(MachineryCharges.Sync(input, await LoadCatalog(db))));
+    if (errors.Count > 0) return Results.ValidationProblem(errors);
+    var catalog = await LoadCatalog(db);
+    return Results.Ok(Calculator.Calculate(FinishCharges.Sync(MachineryCharges.Sync(input, catalog), catalog)));
 });
 app.MapGet("/api/invoices", async (AppDb db) => await db.Invoices.OrderByDescending(i => i.IssuedOn).ThenByDescending(i => i.Id).Select(i => new InvoiceListItem(i.Id, i.ProjectId, i.Number, i.CustomerName, i.IssuedOn, i.DueOn, i.Total, i.Status)).ToListAsync());
 app.MapGet("/api/invoices/{id:int}", async (int id, AppDb db) =>
