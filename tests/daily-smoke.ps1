@@ -21,7 +21,16 @@ try {
   $extraction = @($loaded.input.lines | Where-Object { $_.automaticMachineryCharge } | Sort-Object workDate)
   if ($labor.Count -ne 2 -or $labor[0].workDate -ne '2026-10-01' -or $labor[1].workDate -ne '2026-10-02') { throw 'Denní práce se neuložila.' }
   if ($extraction.Count -ne 2 -or $extraction[0].quantity -ne 2 -or $extraction[1].quantity -ne 3 -or $extraction[0].workDate -ne '2026-10-01' -or $extraction[1].workDate -ne '2026-10-02') { throw 'Odsávání není rozdělené podle dnů.' }
-  if ($loaded.result.laborCost -ne 2500 -or $loaded.result.serviceCost -ne 150 -or $loaded.result.totalWithVat -ne 3206.5) { throw 'Denní položky se nesčítají správně.' }
+  if ($loaded.result.laborCost -ne 2500 -or $loaded.result.serviceCost -ne 150 -or $loaded.result.totalWithVat -ne 3206.5) { throw "Denní položky se nesčítají správně: práce $($loaded.result.laborCost), služby $($loaded.result.serviceCost), celkem $($loaded.result.totalWithVat)." }
+  $fractional = $project.Clone()
+  $fractional.lines = @(
+    @{ name = 'Práce truhláře'; category = 'labor'; unit = 'hod'; quantity = 0.1; unitPrice = 500; vatRate = 21; workDate = '2026-10-01' },
+    @{ name = 'Práce truhláře'; category = 'labor'; unit = 'hod'; quantity = 0.1; unitPrice = 500; vatRate = 21; workDate = '2026-10-01' },
+    @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.2; unitPrice = 30; vatRate = 21; workDate = '2026-10-01' },
+    @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.2; unitPrice = 30; vatRate = 21; workDate = '2026-10-01' }
+  )
+  $fractionalResult = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($fractional | ConvertTo-Json -Depth 10)))
+  if ($fractionalResult.laborCost -ne 125 -or $fractionalResult.serviceCost -ne 15) { throw 'Součet času se nezaokrouhlil nahoru po čtvrthodinách.' }
   $invoiceRequest = @{
     number = "DAILY-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"; issuedOn = '2026-10-03'; dueOn = '2026-10-17'
     customerName = 'Test'; supplierName = 'Test'

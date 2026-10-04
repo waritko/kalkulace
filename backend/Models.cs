@@ -106,7 +106,24 @@ public static class Calculator
             woodVolume += volume;
             lines.Add(new(part.Name, "material", "m³", volume, part.PricePerM3, Round(volume * part.PricePerM3 * (1 + input.WoodReservePercent / 100m)), 21, area, volume, board));
         }
-        foreach (var line in input.Lines) lines.Add(new(line.Name, line.Category, line.Unit, line.Quantity, line.UnitPrice, Round(line.Quantity * line.UnitPrice), line.VatRate, 0, 0, null, line.WorkDate));
+        // Round the sum for each dated, identically priced work or machinery item.
+        // Keep the reported quantities in the project; assign the rounding difference
+        // to the final calculated row so the invoice rows still add up exactly.
+        var billableQuantities = input.Lines.Select(line => line.Quantity).ToArray();
+        var timedGroups = input.Lines.Select((line, index) => (line, index))
+            .Where(entry => entry.line.Unit == "hod" && (entry.line.Category == "labor" || entry.line.Category == "service" && entry.line.ServiceCategory == "machinery"))
+            .GroupBy(entry => (entry.line.WorkDate, entry.line.Category, entry.line.Name, entry.line.UnitPrice, entry.line.VatRate, entry.line.AutomaticMachineryCharge));
+        foreach (var group in timedGroups)
+        {
+            var total = group.Sum(entry => entry.line.Quantity);
+            billableQuantities[group.Last().index] += Math.Ceiling(total * 4m) / 4m - total;
+        }
+        for (var index = 0; index < input.Lines.Count; index++)
+        {
+            var line = input.Lines[index];
+            var quantity = billableQuantities[index];
+            lines.Add(new(line.Name, line.Category, line.Unit, quantity, line.UnitPrice, Round(quantity * line.UnitPrice), line.VatRate, 0, 0, null, line.WorkDate));
+        }
 
         var material = lines.Where(l => l.Category == "material").Sum(l => l.Cost);
         var labor = lines.Where(l => l.Category == "labor").Sum(l => l.Cost);
