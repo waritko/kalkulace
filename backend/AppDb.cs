@@ -92,6 +92,7 @@ public class ProjectCostLine
     public bool UsesVacuum { get; set; }
     public string? AutomaticMachineryCharge { get; set; }
     public bool AutomaticFinish { get; set; }
+    public DateOnly? WorkDate { get; set; }
 }
 
 public class CatalogState
@@ -181,6 +182,7 @@ public class InvoiceCalculatedLine
     public decimal AreaM2 { get; set; }
     public decimal VolumeM3 { get; set; }
     public decimal? BoardThicknessMm { get; set; }
+    public DateOnly? WorkDate { get; set; }
 }
 
 public class InvoiceVatSummary

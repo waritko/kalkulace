@@ -11,7 +11,7 @@ public static class EntityMapping
             project.WoodParts.OrderBy(p => p.Position).Select(p => new WoodPart(p.Name, p.WoodType, p.WidthMm,
                 p.LengthMm, p.ThicknessMm, p.Quantity, p.PricePerM3, p.Finish, p.ApplyFinish)).ToList(),
             project.Lines.OrderBy(l => l.Position).Select(l => new CostLine(l.Name, l.Category, l.Unit, l.Quantity,
-                l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType, l.AutomaticFinish)).ToList(),
+                l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType, l.AutomaticFinish, l.WorkDate)).ToList(),
             d.LamellaLengthExtraMm, d.LamellaMergeToleranceMm, d.GlueBoardWastePercent);
     }
 
@@ -42,7 +42,7 @@ public static class EntityMapping
         {
             ProjectId = project.Id, Position = n, Name = l.Name, Category = l.Category, Unit = l.Unit,
             Quantity = l.Quantity, UnitPrice = l.UnitPrice, VatRate = l.VatRate, ServiceCategory = l.ServiceCategory,
-            UsesExtraction = l.UsesExtraction, UsesVacuum = l.UsesVacuum, AutomaticMachineryCharge = l.AutomaticMachineryCharge, MaterialType = l.MaterialType, AutomaticFinish = l.AutomaticFinish
+            UsesExtraction = l.UsesExtraction, UsesVacuum = l.UsesVacuum, AutomaticMachineryCharge = l.AutomaticMachineryCharge, MaterialType = l.MaterialType, AutomaticFinish = l.AutomaticFinish, WorkDate = l.WorkDate
         }).ToList();
     }
 
@@ -61,7 +61,7 @@ public static class EntityMapping
         {
             InvoiceId = invoice.Id, Position = n, Name = l.Name, Category = l.Category, Unit = l.Unit,
             Quantity = l.Quantity, UnitPrice = l.UnitPrice, Cost = l.Cost, VatRate = l.VatRate,
-            AreaM2 = l.AreaM2, VolumeM3 = l.VolumeM3, BoardThicknessMm = l.BoardThicknessMm
+            AreaM2 = l.AreaM2, VolumeM3 = l.VolumeM3, BoardThicknessMm = l.BoardThicknessMm, WorkDate = l.WorkDate
         }).ToList();
         invoice.Vat = result.Vat.Select((v, n) => new InvoiceVatSummary
         {
@@ -73,7 +73,7 @@ public static class EntityMapping
     {
         var c = invoice.Calculation;
         return new(invoice.Lines.OrderBy(l => l.Position).Select(l => new CalculatedLine(l.Name, l.Category,
-                l.Unit, l.Quantity, l.UnitPrice, l.Cost, l.VatRate, l.AreaM2, l.VolumeM3, l.BoardThicknessMm)).ToList(),
+                l.Unit, l.Quantity, l.UnitPrice, l.Cost, l.VatRate, l.AreaM2, l.VolumeM3, l.BoardThicknessMm, l.WorkDate)).ToList(),
             c.MaterialCost, c.LaborCost, c.ServiceCost, c.FinanceCost, c.WoodCost, c.WoodVolumeM3,
             c.Overhead, c.Profit, c.TotalCost, c.TotalWithoutVat, c.TotalVat, c.TotalWithVat,
             c.BudgetDifference, c.BudgetUsagePercent,

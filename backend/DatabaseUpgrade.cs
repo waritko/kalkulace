@@ -19,6 +19,7 @@ public static class DatabaseUpgrade
         await AddMaterialTypeColumns(db);
         await AddFinishColumns(db);
         await AddGlueBoardColumns(db);
+        await AddWorkDateColumns(db);
         var projectPayload = await HasColumn(db, "Projects", "Payload");
         var invoiceSnapshot = await HasColumn(db, "Invoices", "Snapshot");
         var catalogExists = await HasTable(db, "CatalogSettings");
@@ -38,6 +39,7 @@ public static class DatabaseUpgrade
         await AddMaterialTypeColumns(db);
         await AddFinishColumns(db);
         await AddGlueBoardColumns(db);
+        await AddWorkDateColumns(db);
 
         var projects = projectPayload ? await ReadLegacy(db, "SELECT Id, Payload FROM Projects") : [];
         var invoices = invoiceSnapshot ? await ReadLegacy(db, "SELECT Id, Snapshot FROM Invoices") : [];
@@ -106,6 +108,20 @@ public static class DatabaseUpgrade
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN LamellaMergeToleranceMm decimal(18,2) NOT NULL DEFAULT 50");
         if (!await HasColumn(db, "ProjectDetails", "GlueBoardWastePercent"))
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN GlueBoardWastePercent decimal(18,2) NOT NULL DEFAULT 10");
+    }
+
+    private static async Task AddWorkDateColumns(AppDb db)
+    {
+        if (await HasTable(db, "ProjectCostLine") && !await HasColumn(db, "ProjectCostLine", "WorkDate"))
+        {
+            if (db.Database.IsSqlite()) await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectCostLine ADD COLUMN WorkDate TEXT NULL");
+            else await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectCostLine ADD COLUMN WorkDate date NULL");
+        }
+        if (await HasTable(db, "InvoiceCalculatedLine") && !await HasColumn(db, "InvoiceCalculatedLine", "WorkDate"))
+        {
+            if (db.Database.IsSqlite()) await db.Database.ExecuteSqlRawAsync("ALTER TABLE InvoiceCalculatedLine ADD COLUMN WorkDate TEXT NULL");
+            else await db.Database.ExecuteSqlRawAsync("ALTER TABLE InvoiceCalculatedLine ADD COLUMN WorkDate date NULL");
+        }
     }
 
     private static async Task<bool> HasColumn(AppDb db, string table, string column)

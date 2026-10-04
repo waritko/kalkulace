@@ -1,7 +1,7 @@
 namespace Kalkulace.Api;
 
 public record WoodPart(string Name, string WoodType, decimal WidthMm, decimal LengthMm, decimal ThicknessMm, decimal Quantity, decimal PricePerM3, string? Finish, bool ApplyFinish = false);
-public record CostLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false, string? AutomaticMachineryCharge = null, string? MaterialType = null, bool AutomaticFinish = false);
+public record CostLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false, string? AutomaticMachineryCharge = null, string? MaterialType = null, bool AutomaticFinish = false, DateOnly? WorkDate = null);
 public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines, decimal LamellaLengthExtraMm = 50m, decimal LamellaMergeToleranceMm = 50m, decimal GlueBoardWastePercent = 10m);
 public record ProjectListItem(int Id, string Name, string CustomerName, DateTimeOffset UpdatedAt);
 public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, DateTimeOffset UpdatedAt)
@@ -12,7 +12,7 @@ public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, Da
         return new(project.Id, input, Calculator.Calculate(input), project.UpdatedAt);
     }
 }
-public record CalculatedLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, decimal Cost, int VatRate, decimal AreaM2, decimal VolumeM3, decimal? BoardThicknessMm);
+public record CalculatedLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, decimal Cost, int VatRate, decimal AreaM2, decimal VolumeM3, decimal? BoardThicknessMm, DateOnly? WorkDate = null);
 public record VatSummary(int Rate, decimal Base, decimal Vat, decimal Total);
 public record WoodPurchaseItem(string WoodType, decimal BoardThicknessMm, decimal AreaM2, decimal VolumeM3, decimal Width3mCm, decimal Width4mCm);
 public record GlueBoardPurchaseItem(string WoodType, decimal ThicknessMm, decimal LamellaLengthMm, decimal TotalWidthMm);
@@ -43,7 +43,7 @@ public static class Validator
         if (input.GlueBoardWastePercent < 0 || input.GlueBoardWastePercent > 100 || input.LamellaLengthExtraMm < 0 || input.LamellaMergeToleranceMm < 0)
             errors["glueBoard"] = ["Prořez musí být v rozsahu 0–100 % a přídavek i tolerance délky musí být nezáporné."];
         if (input.WoodParts?.Any(p => string.IsNullOrWhiteSpace(p.Name) || string.IsNullOrWhiteSpace(p.WoodType) || p.WidthMm <= 0 || p.LengthMm <= 0 || p.ThicknessMm <= 0 || p.Quantity <= 0 || p.PricePerM3 < 0) == true) errors["woodParts"] = ["Vyplňte název, dřevinu, kladné rozměry a počet; cena nesmí být záporná."];
-        if (input.Lines?.Any(l => string.IsNullOrWhiteSpace(l.Name) || l.Quantity <= 0 || l.UnitPrice < 0 || l.Category is not ("material" or "labor" or "service" or "finance") || (l.MaterialType is not null && (l.Category != "material" || l.MaterialType is not ("fastener" or "finish" or "abrasive"))) || (l.ServiceCategory is not null && (l.Category != "service" || l.ServiceCategory is not ("transport" or "machinery" or "other"))) || l.VatRate is not (12 or 21) || ((l.UsesExtraction || l.UsesVacuum || l.AutomaticMachineryCharge is not null) && (l.Category != "service" || l.ServiceCategory != "machinery")) || (l.AutomaticMachineryCharge is not null && l.AutomaticMachineryCharge is not (MachineryCharges.Extraction or MachineryCharges.Vacuum)) || (l.AutomaticFinish && (l.Category != "material" || l.MaterialType != "finish"))) == true) errors["lines"] = ["Položky musí mít název, kladné množství, nezápornou cenu, platnou kategorii a sazbu DPH."];
+        if (input.Lines?.Any(l => string.IsNullOrWhiteSpace(l.Name) || l.Quantity <= 0 || l.UnitPrice < 0 || l.Category is not ("material" or "labor" or "service" or "finance") || (l.MaterialType is not null && (l.Category != "material" || l.MaterialType is not ("fastener" or "finish" or "abrasive"))) || (l.ServiceCategory is not null && (l.Category != "service" || l.ServiceCategory is not ("transport" or "machinery" or "other"))) || l.VatRate is not (12 or 21) || ((l.UsesExtraction || l.UsesVacuum || l.AutomaticMachineryCharge is not null) && (l.Category != "service" || l.ServiceCategory != "machinery")) || (l.AutomaticMachineryCharge is not null && l.AutomaticMachineryCharge is not (MachineryCharges.Extraction or MachineryCharges.Vacuum)) || (l.AutomaticFinish && (l.Category != "material" || l.MaterialType != "finish")) || (l.WorkDate is not null && l.Category != "labor" && (l.Category != "service" || l.ServiceCategory != "machinery"))) == true) errors["lines"] = ["Položky musí mít název, kladné množství, nezápornou cenu, platnou kategorii a sazbu DPH."];
         return errors;
     }
 }
@@ -106,7 +106,7 @@ public static class Calculator
             woodVolume += volume;
             lines.Add(new(part.Name, "material", "m³", volume, part.PricePerM3, Round(volume * part.PricePerM3 * (1 + input.WoodReservePercent / 100m)), 21, area, volume, board));
         }
-        foreach (var line in input.Lines) lines.Add(new(line.Name, line.Category, line.Unit, line.Quantity, line.UnitPrice, Round(line.Quantity * line.UnitPrice), line.VatRate, 0, 0, null));
+        foreach (var line in input.Lines) lines.Add(new(line.Name, line.Category, line.Unit, line.Quantity, line.UnitPrice, Round(line.Quantity * line.UnitPrice), line.VatRate, 0, 0, null, line.WorkDate));
 
         var material = lines.Where(l => l.Category == "material").Sum(l => l.Cost);
         var labor = lines.Where(l => l.Category == "labor").Sum(l => l.Cost);
@@ -192,13 +192,14 @@ public static class MachineryCharges
         var automatic = new List<CostLine>();
         foreach (var name in new[] { Extraction, Vacuum })
         {
-            var quantity = ordinary.Where(line => line.Category == "service" && line.ServiceCategory == "machinery" && (name == Extraction ? line.UsesExtraction : line.UsesVacuum)).Sum(line => line.Quantity);
-            if (quantity <= 0) continue;
-            var existing = input.Lines.FirstOrDefault(line => line.AutomaticMachineryCharge == name);
             var price = catalog.Items.FirstOrDefault(item => item.Category == "service" && item.ServiceCategory == "machinery" && item.Name == name);
-            automatic.Add(existing is null
-                ? new CostLine(name, "service", "hod", quantity, price?.UnitPrice ?? 0, price?.VatRate ?? 21, "machinery", AutomaticMachineryCharge: name)
-                : existing with { Name = name, Category = "service", ServiceCategory = "machinery", Unit = "hod", Quantity = quantity });
+            foreach (var group in ordinary.Where(line => line.Category == "service" && line.ServiceCategory == "machinery" && (name == Extraction ? line.UsesExtraction : line.UsesVacuum)).GroupBy(line => line.WorkDate))
+            {
+                var existing = input.Lines.FirstOrDefault(line => line.AutomaticMachineryCharge == name && line.WorkDate == group.Key);
+                automatic.Add(existing is null
+                    ? new CostLine(name, "service", "hod", group.Sum(line => line.Quantity), price?.UnitPrice ?? 0, price?.VatRate ?? 21, "machinery", AutomaticMachineryCharge: name, WorkDate: group.Key)
+                    : existing with { Name = name, Category = "service", ServiceCategory = "machinery", Unit = "hod", Quantity = group.Sum(line => line.Quantity) });
+            }
         }
         return input with { Lines = [.. ordinary, .. automatic] };
     }
