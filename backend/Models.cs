@@ -87,19 +87,6 @@ public static class Calculator
         var withoutVat = vat.Sum(v => v.Base);
         var totalVat = vat.Sum(v => v.Vat);
         var withVat = withoutVat + totalVat;
-        var woodPurchase = input.WoodParts
-            .GroupBy(part => (WoodType: part.WoodType.Trim(), BoardThicknessMm: part.ThicknessMm < 29 ? 32m : 50m))
-            .Select(group =>
-            {
-                var area = group.Sum(part => part.WidthMm * part.LengthMm * part.Quantity / 1_000_000m);
-                return new WoodPurchaseItem(group.Key.WoodType, group.Key.BoardThicknessMm, area,
-                    area * group.Key.BoardThicknessMm / 1000m,
-                    Math.Ceiling(area / 3m * 10m) * 10m,
-                    Math.Ceiling(area / 4m * 10m) * 10m);
-            })
-            .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(item => item.BoardThicknessMm)
-            .ToList();
         var glueBoardPurchase = new List<GlueBoardPurchaseItem>();
         foreach (var group in input.WoodParts.GroupBy(part => (WoodType: part.WoodType.Trim(), part.ThicknessMm)))
         {
@@ -120,6 +107,19 @@ public static class Calculator
             .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.ThicknessMm)
             .ThenByDescending(item => item.LamellaLengthMm)
+            .ToList();
+        var woodPurchase = glueBoardPurchase
+            .GroupBy(item => (item.WoodType, BoardThicknessMm: item.ThicknessMm < 29 ? 32m : 50m))
+            .Select(group =>
+            {
+                var area = group.Sum(item => item.LamellaLengthMm * item.TotalWidthMm / 1_000_000m);
+                return new WoodPurchaseItem(group.Key.WoodType, group.Key.BoardThicknessMm, area,
+                    area * group.Key.BoardThicknessMm / 1000m,
+                    Math.Ceiling(area / 3m * 10m) * 10m,
+                    Math.Ceiling(area / 4m * 10m) * 10m);
+            })
+            .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(item => item.BoardThicknessMm)
             .ToList();
         return new(lines, material, labor, service, finance, lines.Where(l => l.VolumeM3 > 0).Sum(l => l.Cost), woodVolume, overhead, profit, totalCost, withoutVat, totalVat, withVat, input.BudgetLimit - withVat, input.BudgetLimit == 0 ? 0 : Round(withVat / input.BudgetLimit * 100m), vat)
         { WoodPurchase = woodPurchase, GlueBoardPurchase = glueBoardPurchase };
