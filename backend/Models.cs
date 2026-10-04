@@ -14,7 +14,11 @@ public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, Da
 }
 public record CalculatedLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, decimal Cost, int VatRate, decimal AreaM2, decimal VolumeM3, decimal? BoardThicknessMm);
 public record VatSummary(int Rate, decimal Base, decimal Vat, decimal Total);
-public record Calculation(List<CalculatedLine> Lines, decimal MaterialCost, decimal LaborCost, decimal ServiceCost, decimal FinanceCost, decimal WoodCost, decimal WoodVolumeM3, decimal Overhead, decimal Profit, decimal TotalCost, decimal TotalWithoutVat, decimal TotalVat, decimal TotalWithVat, decimal BudgetDifference, decimal BudgetUsagePercent, List<VatSummary> Vat);
+public record WoodPurchaseItem(string WoodType, decimal BoardThicknessMm, decimal AreaM2, decimal VolumeM3, decimal Width3mCm, decimal Width4mCm);
+public record Calculation(List<CalculatedLine> Lines, decimal MaterialCost, decimal LaborCost, decimal ServiceCost, decimal FinanceCost, decimal WoodCost, decimal WoodVolumeM3, decimal Overhead, decimal Profit, decimal TotalCost, decimal TotalWithoutVat, decimal TotalVat, decimal TotalWithVat, decimal BudgetDifference, decimal BudgetUsagePercent, List<VatSummary> Vat)
+{
+    public List<WoodPurchaseItem> WoodPurchase { get; init; } = [];
+}
 public record InvoiceRequest(string Number, DateOnly IssuedOn, DateOnly DueOn, string CustomerName, string? CustomerAddress, string SupplierName, string? SupplierAddress, string? SupplierIco, string? SupplierDic, string? BankAccount, string? Note);
 public record InvoiceStatusRequest(string Status);
 public record InvoiceListItem(int Id, int ProjectId, string Number, string CustomerName, DateOnly IssuedOn, DateOnly DueOn, decimal Total, string Status);
@@ -34,7 +38,7 @@ public static class Validator
         if (input.BudgetLimit < 0) errors["budgetLimit"] = ["Finanční limit musí být nezáporný."];
         var percents = new[] { input.WoodReservePercent, input.MaterialOverheadPercent, input.MaterialMarginPercent, input.LaborMarginPercent, input.ServiceMarginPercent, input.FinanceMarginPercent, input.DiscountPercent };
         if (percents.Any(p => p < 0 || p > 100)) errors["percent"] = ["Procenta musí být v rozsahu 0–100."];
-        if (input.WoodParts?.Any(p => string.IsNullOrWhiteSpace(p.Name) || p.WidthMm <= 0 || p.LengthMm <= 0 || p.ThicknessMm <= 0 || p.Quantity <= 0 || p.PricePerM3 < 0) == true) errors["woodParts"] = ["Vyplňte název, kladné rozměry a počet; cena nesmí být záporná."];
+        if (input.WoodParts?.Any(p => string.IsNullOrWhiteSpace(p.Name) || string.IsNullOrWhiteSpace(p.WoodType) || p.WidthMm <= 0 || p.LengthMm <= 0 || p.ThicknessMm <= 0 || p.Quantity <= 0 || p.PricePerM3 < 0) == true) errors["woodParts"] = ["Vyplňte název, dřevinu, kladné rozměry a počet; cena nesmí být záporná."];
         if (input.Lines?.Any(l => string.IsNullOrWhiteSpace(l.Name) || l.Quantity <= 0 || l.UnitPrice < 0 || l.Category is not ("material" or "labor" or "service" or "finance") || (l.MaterialType is not null && (l.Category != "material" || l.MaterialType is not ("fastener" or "finish" or "abrasive"))) || (l.ServiceCategory is not null && (l.Category != "service" || l.ServiceCategory is not ("transport" or "machinery" or "other"))) || l.VatRate is not (12 or 21) || ((l.UsesExtraction || l.UsesVacuum || l.AutomaticMachineryCharge is not null) && (l.Category != "service" || l.ServiceCategory != "machinery")) || (l.AutomaticMachineryCharge is not null && l.AutomaticMachineryCharge is not (MachineryCharges.Extraction or MachineryCharges.Vacuum)) || (l.AutomaticFinish && (l.Category != "material" || l.MaterialType != "finish"))) == true) errors["lines"] = ["Položky musí mít název, kladné množství, nezápornou cenu, platnou kategorii a sazbu DPH."];
         return errors;
     }
@@ -79,7 +83,21 @@ public static class Calculator
         var withoutVat = vat.Sum(v => v.Base);
         var totalVat = vat.Sum(v => v.Vat);
         var withVat = withoutVat + totalVat;
-        return new(lines, material, labor, service, finance, lines.Where(l => l.VolumeM3 > 0).Sum(l => l.Cost), woodVolume, overhead, profit, totalCost, withoutVat, totalVat, withVat, input.BudgetLimit - withVat, input.BudgetLimit == 0 ? 0 : Round(withVat / input.BudgetLimit * 100m), vat);
+        var woodPurchase = input.WoodParts
+            .GroupBy(part => (WoodType: part.WoodType.Trim(), BoardThicknessMm: part.ThicknessMm < 29 ? 32m : 50m))
+            .Select(group =>
+            {
+                var area = group.Sum(part => part.WidthMm * part.LengthMm * part.Quantity / 1_000_000m);
+                return new WoodPurchaseItem(group.Key.WoodType, group.Key.BoardThicknessMm, area,
+                    area * group.Key.BoardThicknessMm / 1000m,
+                    Math.Ceiling(area / 3m * 10m) * 10m,
+                    Math.Ceiling(area / 4m * 10m) * 10m);
+            })
+            .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(item => item.BoardThicknessMm)
+            .ToList();
+        return new(lines, material, labor, service, finance, lines.Where(l => l.VolumeM3 > 0).Sum(l => l.Cost), woodVolume, overhead, profit, totalCost, withoutVat, totalVat, withVat, input.BudgetLimit - withVat, input.BudgetLimit == 0 ? 0 : Round(withVat / input.BudgetLimit * 100m), vat)
+        { WoodPurchase = woodPurchase };
     }
 }
 
