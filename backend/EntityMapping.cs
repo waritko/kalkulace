@@ -11,7 +11,8 @@ public static class EntityMapping
             project.WoodParts.OrderBy(p => p.Position).Select(p => new WoodPart(p.Name, p.WoodType, p.WidthMm,
                 p.LengthMm, p.ThicknessMm, p.Quantity, p.PricePerM3, p.Finish, p.ApplyFinish)).ToList(),
             project.Lines.OrderBy(l => l.Position).Select(l => new CostLine(l.Name, l.Category, l.Unit, l.Quantity,
-                l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType, l.AutomaticFinish)).ToList());
+                l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType, l.AutomaticFinish)).ToList(),
+            d.LamellaLengthExtraMm, d.LamellaMergeToleranceMm, d.GlueBoardWastePercent);
     }
 
     public static void SetInput(this Project project, ProjectInput input)
@@ -22,6 +23,9 @@ public static class EntityMapping
         project.Details.BudgetLimit = input.BudgetLimit;
         project.Details.NonVatPayer = input.NonVatPayer;
         project.Details.WoodReservePercent = input.WoodReservePercent;
+        project.Details.LamellaLengthExtraMm = input.LamellaLengthExtraMm;
+        project.Details.LamellaMergeToleranceMm = input.LamellaMergeToleranceMm;
+        project.Details.GlueBoardWastePercent = input.GlueBoardWastePercent;
         project.Details.MaterialOverheadPercent = input.MaterialOverheadPercent;
         project.Details.MaterialMarginPercent = input.MaterialMarginPercent;
         project.Details.LaborMarginPercent = input.LaborMarginPercent;

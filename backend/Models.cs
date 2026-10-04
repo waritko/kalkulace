@@ -2,7 +2,7 @@ namespace Kalkulace.Api;
 
 public record WoodPart(string Name, string WoodType, decimal WidthMm, decimal LengthMm, decimal ThicknessMm, decimal Quantity, decimal PricePerM3, string? Finish, bool ApplyFinish = false);
 public record CostLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false, string? AutomaticMachineryCharge = null, string? MaterialType = null, bool AutomaticFinish = false);
-public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines);
+public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines, decimal LamellaLengthExtraMm = 50m, decimal LamellaMergeToleranceMm = 50m, decimal GlueBoardWastePercent = 10m);
 public record ProjectListItem(int Id, string Name, string CustomerName, DateTimeOffset UpdatedAt);
 public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, DateTimeOffset UpdatedAt)
 {
@@ -15,9 +15,11 @@ public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, Da
 public record CalculatedLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, decimal Cost, int VatRate, decimal AreaM2, decimal VolumeM3, decimal? BoardThicknessMm);
 public record VatSummary(int Rate, decimal Base, decimal Vat, decimal Total);
 public record WoodPurchaseItem(string WoodType, decimal BoardThicknessMm, decimal AreaM2, decimal VolumeM3, decimal Width3mCm, decimal Width4mCm);
+public record GlueBoardPurchaseItem(string WoodType, decimal ThicknessMm, decimal LamellaLengthMm, decimal TotalWidthMm);
 public record Calculation(List<CalculatedLine> Lines, decimal MaterialCost, decimal LaborCost, decimal ServiceCost, decimal FinanceCost, decimal WoodCost, decimal WoodVolumeM3, decimal Overhead, decimal Profit, decimal TotalCost, decimal TotalWithoutVat, decimal TotalVat, decimal TotalWithVat, decimal BudgetDifference, decimal BudgetUsagePercent, List<VatSummary> Vat)
 {
     public List<WoodPurchaseItem> WoodPurchase { get; init; } = [];
+    public List<GlueBoardPurchaseItem> GlueBoardPurchase { get; init; } = [];
 }
 public record InvoiceRequest(string Number, DateOnly IssuedOn, DateOnly DueOn, string CustomerName, string? CustomerAddress, string SupplierName, string? SupplierAddress, string? SupplierIco, string? SupplierDic, string? BankAccount, string? Note);
 public record InvoiceStatusRequest(string Status);
@@ -38,6 +40,8 @@ public static class Validator
         if (input.BudgetLimit < 0) errors["budgetLimit"] = ["Finanční limit musí být nezáporný."];
         var percents = new[] { input.WoodReservePercent, input.MaterialOverheadPercent, input.MaterialMarginPercent, input.LaborMarginPercent, input.ServiceMarginPercent, input.FinanceMarginPercent, input.DiscountPercent };
         if (percents.Any(p => p < 0 || p > 100)) errors["percent"] = ["Procenta musí být v rozsahu 0–100."];
+        if (input.GlueBoardWastePercent < 0 || input.GlueBoardWastePercent > 100 || input.LamellaLengthExtraMm < 0 || input.LamellaMergeToleranceMm < 0)
+            errors["glueBoard"] = ["Prořez musí být v rozsahu 0–100 % a přídavek i tolerance délky musí být nezáporné."];
         if (input.WoodParts?.Any(p => string.IsNullOrWhiteSpace(p.Name) || string.IsNullOrWhiteSpace(p.WoodType) || p.WidthMm <= 0 || p.LengthMm <= 0 || p.ThicknessMm <= 0 || p.Quantity <= 0 || p.PricePerM3 < 0) == true) errors["woodParts"] = ["Vyplňte název, dřevinu, kladné rozměry a počet; cena nesmí být záporná."];
         if (input.Lines?.Any(l => string.IsNullOrWhiteSpace(l.Name) || l.Quantity <= 0 || l.UnitPrice < 0 || l.Category is not ("material" or "labor" or "service" or "finance") || (l.MaterialType is not null && (l.Category != "material" || l.MaterialType is not ("fastener" or "finish" or "abrasive"))) || (l.ServiceCategory is not null && (l.Category != "service" || l.ServiceCategory is not ("transport" or "machinery" or "other"))) || l.VatRate is not (12 or 21) || ((l.UsesExtraction || l.UsesVacuum || l.AutomaticMachineryCharge is not null) && (l.Category != "service" || l.ServiceCategory != "machinery")) || (l.AutomaticMachineryCharge is not null && l.AutomaticMachineryCharge is not (MachineryCharges.Extraction or MachineryCharges.Vacuum)) || (l.AutomaticFinish && (l.Category != "material" || l.MaterialType != "finish"))) == true) errors["lines"] = ["Položky musí mít název, kladné množství, nezápornou cenu, platnou kategorii a sazbu DPH."];
         return errors;
@@ -96,8 +100,29 @@ public static class Calculator
             .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.BoardThicknessMm)
             .ToList();
+        var glueBoardPurchase = new List<GlueBoardPurchaseItem>();
+        foreach (var group in input.WoodParts.GroupBy(part => (WoodType: part.WoodType.Trim(), part.ThicknessMm)))
+        {
+            // Work from the longest piece down. Every piece in a row stays within the
+            // tolerance of the row's purchasing length, including at cluster boundaries.
+            foreach (var part in group.OrderByDescending(part => Math.Max(part.WidthMm, part.LengthMm)))
+            {
+                var length = Math.Max(part.WidthMm, part.LengthMm) + input.LamellaLengthExtraMm;
+                var width = Math.Min(part.WidthMm, part.LengthMm) * part.Quantity;
+                var row = glueBoardPurchase.FindIndex(item => item.WoodType == group.Key.WoodType &&
+                    item.ThicknessMm == group.Key.ThicknessMm && item.LamellaLengthMm - length <= input.LamellaMergeToleranceMm && item.LamellaLengthMm >= length);
+                if (row < 0) glueBoardPurchase.Add(new(group.Key.WoodType, group.Key.ThicknessMm, length, width));
+                else glueBoardPurchase[row] = glueBoardPurchase[row] with { TotalWidthMm = glueBoardPurchase[row].TotalWidthMm + width };
+            }
+        }
+        glueBoardPurchase = glueBoardPurchase
+            .Select(item => item with { TotalWidthMm = Math.Ceiling(item.TotalWidthMm * (1 + input.GlueBoardWastePercent / 100m)) })
+            .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(item => item.ThicknessMm)
+            .ThenByDescending(item => item.LamellaLengthMm)
+            .ToList();
         return new(lines, material, labor, service, finance, lines.Where(l => l.VolumeM3 > 0).Sum(l => l.Cost), woodVolume, overhead, profit, totalCost, withoutVat, totalVat, withVat, input.BudgetLimit - withVat, input.BudgetLimit == 0 ? 0 : Round(withVat / input.BudgetLimit * 100m), vat)
-        { WoodPurchase = woodPurchase };
+        { WoodPurchase = woodPurchase, GlueBoardPurchase = glueBoardPurchase };
     }
 }
 

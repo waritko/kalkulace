@@ -18,6 +18,7 @@ public static class DatabaseUpgrade
         await db.Database.EnsureCreatedAsync();
         await AddMaterialTypeColumns(db);
         await AddFinishColumns(db);
+        await AddGlueBoardColumns(db);
         var projectPayload = await HasColumn(db, "Projects", "Payload");
         var invoiceSnapshot = await HasColumn(db, "Invoices", "Snapshot");
         var catalogExists = await HasTable(db, "CatalogSettings");
@@ -36,6 +37,7 @@ public static class DatabaseUpgrade
         }
         await AddMaterialTypeColumns(db);
         await AddFinishColumns(db);
+        await AddGlueBoardColumns(db);
 
         var projects = projectPayload ? await ReadLegacy(db, "SELECT Id, Payload FROM Projects") : [];
         var invoices = invoiceSnapshot ? await ReadLegacy(db, "SELECT Id, Snapshot FROM Invoices") : [];
@@ -93,6 +95,17 @@ public static class DatabaseUpgrade
             if (db.Database.IsSqlite()) await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectCostLine ADD COLUMN AutomaticFinish INTEGER NOT NULL DEFAULT 0");
             else await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectCostLine ADD COLUMN AutomaticFinish tinyint(1) NOT NULL DEFAULT 0");
         }
+    }
+
+    private static async Task AddGlueBoardColumns(AppDb db)
+    {
+        if (!await HasTable(db, "ProjectDetails")) return;
+        if (!await HasColumn(db, "ProjectDetails", "LamellaLengthExtraMm"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN LamellaLengthExtraMm decimal(18,2) NOT NULL DEFAULT 50");
+        if (!await HasColumn(db, "ProjectDetails", "LamellaMergeToleranceMm"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN LamellaMergeToleranceMm decimal(18,2) NOT NULL DEFAULT 50");
+        if (!await HasColumn(db, "ProjectDetails", "GlueBoardWastePercent"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN GlueBoardWastePercent decimal(18,2) NOT NULL DEFAULT 10");
     }
 
     private static async Task<bool> HasColumn(AppDb db, string table, string column)

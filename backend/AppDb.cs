@@ -50,6 +50,9 @@ public class ProjectDetails
     public decimal BudgetLimit { get; set; }
     public bool NonVatPayer { get; set; }
     public decimal WoodReservePercent { get; set; }
+    public decimal LamellaLengthExtraMm { get; set; } = 50m;
+    public decimal LamellaMergeToleranceMm { get; set; } = 50m;
+    public decimal GlueBoardWastePercent { get; set; } = 10m;
     public decimal MaterialOverheadPercent { get; set; }
     public decimal MaterialMarginPercent { get; set; }
     public decimal LaborMarginPercent { get; set; }

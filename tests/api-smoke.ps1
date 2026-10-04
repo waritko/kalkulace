@@ -1,4 +1,4 @@
-param([string]$BaseUrl = 'http://127.0.0.1:5080')
+﻿param([string]$BaseUrl = 'http://127.0.0.1:5080')
 $ErrorActionPreference = 'Stop'
 $base = "$BaseUrl/api"
 $project = @{
@@ -27,17 +27,38 @@ $project.woodParts += @{ name = 'Bukový díl'; woodType = 'Buk'; widthMm = 100;
 $grouped = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($project | ConvertTo-Json -Depth 10)))
 $oak32 = @($grouped.woodPurchase | Where-Object { $_.woodType -eq 'Dub' -and $_.boardThicknessMm -eq 32 })
 if ($grouped.woodPurchase.Count -ne 3 -or $oak32.Count -ne 1 -or $oak32[0].areaM2 -ne 1.2 -or $oak32[0].volumeM3 -ne 0.0384 -or $oak32[0].width3mCm -ne 40 -or $oak32[0].width4mCm -ne 30) { throw 'Wood purchase grouping or rounding mismatch' }
-$project.woodParts = @($project.woodParts[0])
+$project.lamellaLengthExtraMm = 50
+$project.lamellaMergeToleranceMm = 50
+$project.glueBoardWastePercent = 10
+$project.woodParts = @(
+  @{ name = 'Dlouhý'; woodType = 'Dub'; widthMm = 400; lengthMm = 1000; thicknessMm = 25; quantity = 2; pricePerM3 = 21900; finish = '' },
+  @{ name = 'Blízký'; woodType = 'Dub'; widthMm = 300; lengthMm = 950; thicknessMm = 25; quantity = 1; pricePerM3 = 21900; finish = '' },
+  @{ name = 'Další'; woodType = 'Dub'; widthMm = 200; lengthMm = 900; thicknessMm = 25; quantity = 1; pricePerM3 = 21900; finish = '' },
+  @{ name = 'Otočený'; woodType = 'Buk'; widthMm = 1200; lengthMm = 150; thicknessMm = 30; quantity = 1; pricePerM3 = 11000; finish = '' }
+)
+$glue = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($project | ConvertTo-Json -Depth 10)))
+$oakGlue = @($glue.glueBoardPurchase | Where-Object woodType -eq 'Dub')
+$beechGlue = @($glue.glueBoardPurchase | Where-Object woodType -eq 'Buk')
+if ($oakGlue.Count -ne 2 -or $oakGlue[0].lamellaLengthMm -ne 1050 -or $oakGlue[0].totalWidthMm -ne 1210 -or $oakGlue[1].lamellaLengthMm -ne 950 -or $oakGlue[1].totalWidthMm -ne 220 -or $beechGlue[0].lamellaLengthMm -ne 1250 -or $beechGlue[0].totalWidthMm -ne 165) { throw 'Glue board grouping, orientation or waste mismatch' }
+$project.lamellaMergeToleranceMm = 0
+$unmerged = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($project | ConvertTo-Json -Depth 10)))
+if (@($unmerged.glueBoardPurchase | Where-Object woodType -eq 'Dub').Count -ne 3) { throw 'Glue board tolerance was ignored' }
+$project.woodParts = @(@{ name = 'Police'; woodType = 'Dub'; widthMm = 500; lengthMm = 1000; thicknessMm = 25; quantity = 2; pricePerM3 = 21900; finish = '' })
 $project.woodParts[0].applyFinish = $true
 $finished = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($project | ConvertTo-Json -Depth 10)))
 $finishLine = @($finished.lines | Where-Object name -eq 'Osmo')
 if ($finishLine.Count -ne 1 -or $finishLine[0].quantity -ne 2.2 -or $finishLine[0].cost -ne 82.1) { throw 'Automatic finish quantity or cost mismatch' }
 $project.woodParts[0].applyFinish = $false
 $project.woodParts = @()
+$project.lamellaLengthExtraMm = 70
+$project.lamellaMergeToleranceMm = 25
+$project.glueBoardWastePercent = 12
+$body = $project | ConvertTo-Json -Depth 10
 $created = Invoke-RestMethod "$base/projects" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body))
 try {
   $loaded = Invoke-RestMethod "$base/projects/$($created.id)"
   if ($loaded.input.name -ne $project.name -or $loaded.input.lines.Count -ne 2 -or $loaded.input.lines[0].materialType -ne 'fastener' -or $loaded.input.lines[1].quantity -ne 0.5) { throw 'Project did not persist' }
+  if ($loaded.input.lamellaLengthExtraMm -ne 70 -or $loaded.input.lamellaMergeToleranceMm -ne 25 -or $loaded.input.glueBoardWastePercent -ne 12) { throw 'Glue board settings did not persist' }
   $listed = @(Invoke-RestMethod "$base/projects")
   if ($created.id -notin $listed.id) { throw 'Project is missing from project list' }
   $invoiceBody = @{
