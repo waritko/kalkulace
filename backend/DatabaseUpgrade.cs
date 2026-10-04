@@ -16,6 +16,13 @@ public static class DatabaseUpgrade
     public static async Task InitializeAsync(AppDb db)
     {
         await db.Database.EnsureCreatedAsync();
+        // EnsureCreated does not add tables to an existing database.
+        if (!await HasTable(db, "PricingDefaults"))
+        {
+            var create = db.Database.GenerateCreateScript().Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Single(statement => Regex.IsMatch(statement, @"^CREATE TABLE\s+[`""\[]?PricingDefaults\b", RegexOptions.IgnoreCase));
+            await db.Database.ExecuteSqlRawAsync(create);
+        }
         await AddMaterialTypeColumns(db);
         await AddFinishColumns(db);
         await AddGlueBoardColumns(db);

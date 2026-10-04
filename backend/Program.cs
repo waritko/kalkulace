@@ -49,6 +49,20 @@ app.MapGet("/api/catalog", async (AppDb db) =>
 {
     return await LoadCatalog(db);
 });
+app.MapGet("/api/pricing-defaults", async (AppDb db) =>
+    await db.PricingDefaults.AsNoTracking().SingleOrDefaultAsync(p => p.Id == 1) ?? new PricingDefaults());
+app.MapPut("/api/pricing-defaults", async (PricingDefaults defaults, AppDb db) =>
+{
+    var values = new[] { defaults.WoodReservePercent, defaults.MaterialOverheadPercent, defaults.MaterialMarginPercent,
+        defaults.LaborMarginPercent, defaults.ServiceMarginPercent, defaults.FinanceMarginPercent, defaults.DiscountPercent };
+    if (defaults.Id != 1 || values.Any(value => value < 0 || value > 100))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["percent"] = ["Procenta musí být v rozsahu 0–100."] });
+    var current = await db.PricingDefaults.SingleOrDefaultAsync(p => p.Id == 1);
+    if (current is null) db.PricingDefaults.Add(defaults);
+    else db.Entry(current).CurrentValues.SetValues(defaults);
+    await db.SaveChangesAsync();
+    return Results.Ok(defaults);
+});
 app.MapPut("/api/catalog", async (CatalogData data, AppDb db) =>
 {
     var errors = CatalogValidator.Validate(data);

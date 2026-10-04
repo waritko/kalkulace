@@ -7,6 +7,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<CatalogState> CatalogStates => Set<CatalogState>();
+    public DbSet<PricingDefaults> PricingDefaults => Set<PricingDefaults>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -100,6 +101,18 @@ public class CatalogState
     public int Id { get; set; }
     public List<CatalogWood> Wood { get; set; } = [];
     public List<CatalogItemRow> Items { get; set; } = [];
+}
+
+public class PricingDefaults
+{
+    public int Id { get; set; } = 1;
+    public decimal WoodReservePercent { get; set; }
+    public decimal MaterialOverheadPercent { get; set; }
+    public decimal MaterialMarginPercent { get; set; } = 5;
+    public decimal LaborMarginPercent { get; set; }
+    public decimal ServiceMarginPercent { get; set; } = 15;
+    public decimal FinanceMarginPercent { get; set; } = 15;
+    public decimal DiscountPercent { get; set; }
 }
 
 public class CatalogWood
