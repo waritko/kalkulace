@@ -52,3 +52,15 @@ cd frontend; npm run build
 ```
 
 Při běžícím backendu lze spustit `./tests/api-smoke.ps1`. Test ověřuje vzorový výpočet, uložení zakázky a neměnnost vystavené faktury.
+
+## TeamCity
+
+Konfigurace v `.teamcity/settings.kts` vytváří build **Build and smoke tests** se spouštěním při změně ve VCS. V TeamCity vytvořte projekt z tohoto Git repozitáře a zapněte **Versioned Settings** ve formátu Kotlin DSL s cestou `.teamcity`. Build používá stejný VCS root jako nastavení projektu. Verzi DSL v `settings.kts` upravte podle verze vašeho TeamCity serveru.
+
+Agent musí běžet na Windows a mít v `PATH` PowerShell 5.1, .NET SDK 9 a Node.js 20 nebo novější (včetně `npm.cmd`). Skript spustí `npm ci`, sestaví frontend a backend, spustí API na volném lokálním portu se samostatnou SQLite databází a provede všechny tři smoke testy. Výsledky jsou vidět jako testy v TeamCity; logy API se ukládají jako artefakty `api-logs`. Databáze a proces API se po běhu odstraní.
+
+Stejný postup lze spustit lokálně z kořene repozitáře:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/ci.ps1
+```

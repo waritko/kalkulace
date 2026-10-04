@@ -5,4 +5,5 @@ backend/bin/
 backend/obj/
 backend/Data/
 backend/wwwroot/
+tests/.output/
 *.user
