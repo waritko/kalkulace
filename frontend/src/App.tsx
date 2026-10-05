@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, CircleHelp, FileText, LayoutDashboard, Menu, Plus, Printer, ReceiptText, Save, Search, Settings2, Trash2, Wallet, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CircleHelp, FileText, LayoutDashboard, Menu, Moon, Plus, Printer, ReceiptText, Save, Search, Settings2, Sun, Trash2, Wallet, X } from 'lucide-react'
 import type { Calculation, Catalog, Category, CostLine, Invoice, InvoiceListItem, InvoiceRequest, MaterialType, PricingDefaults, ProjectInput, ProjectListItem, ServiceCategory, WoodPart } from './types'
 import { CatalogEditor } from './CatalogEditor'
 import { GlueBoardPurchase } from './GlueBoardPurchase'
@@ -62,6 +62,13 @@ function NumberField({ value, onChange, suffix, min = 0, step = 'any', className
 }
 
 function App() {
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.dataset.theme === 'dark')
+  const toggleDarkMode = () => {
+    const theme = darkMode ? 'light' : 'dark'
+    document.documentElement.dataset.theme = theme
+    setDarkMode(theme === 'dark')
+    try { localStorage.setItem('kalkulace-theme', theme) } catch { /* Keep the toggle usable when storage is unavailable. */ }
+  }
   const [view, setView] = useState<'projects' | 'editor' | 'invoices' | 'invoice' | 'catalog' | 'pricingDefaults'>('projects')
   const [projects, setProjects] = useState<ProjectListItem[]>([])
   const [invoices, setInvoices] = useState<InvoiceListItem[]>([])
@@ -135,7 +142,7 @@ function App() {
       <div className="brand"><div className="brand-mark"><span>K</span></div><div><strong>Kalkulace</strong><small>TRUHLÁŘSKÁ DÍLNA</small></div><button className="icon-button mobile-close" onClick={() => setMobileMenu(false)}><X size={20}/></button></div>
       <div className="side-label">PRACOVNÍ PROSTOR</div>
       <nav><button className={view === 'projects' || view === 'editor' ? 'active' : ''} onClick={() => navigate('projects')}><LayoutDashboard size={19}/> Zakázky <span>{projects.length}</span></button><button className={view === 'invoices' || view === 'invoice' ? 'active' : ''} onClick={() => navigate('invoices')}><ReceiptText size={19}/> Faktury <span>{invoices.length}</span></button><button className={view === 'catalog' ? 'active' : ''} onClick={() => navigate('catalog')}><Settings2 size={19}/> Ceník</button><button className={view === 'pricingDefaults' ? 'active' : ''} onClick={() => navigate('pricingDefaults')}><Wallet size={19}/> Výchozí nastavení ceny</button></nav>
-      <div className="side-bottom"><div className="side-help"><CircleHelp size={20}/><div><strong>Jak začít?</strong><p>Založte zakázku, přidejte díly a náklady. Cenu spočítáme průběžně.</p></div></div><div className="side-footer">KALKULACE V1.0 <span>·</span> CZK</div></div>
+      <div className="side-bottom"><button className="theme-toggle" type="button" aria-pressed={darkMode} onClick={toggleDarkMode}>{darkMode ? <Sun size={18}/> : <Moon size={18}/>}<span>Tmavý režim</span><span className="theme-state">{darkMode ? 'Zapnuto' : 'Vypnuto'}</span></button><div className="side-help"><CircleHelp size={20}/><div><strong>Jak začít?</strong><p>Založte zakázku, přidejte díly a náklady. Cenu spočítáme průběžně.</p></div></div><div className="side-footer">KALKULACE V1.0 <span>·</span> CZK</div></div>
     </aside>
     <div className="main-shell"><header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileMenu(true)}><Menu size={22}/></button><div className="breadcrumb"><span>Pracovní prostor</span><span className="slash">/</span><strong>{view === 'editor' ? (projectId ? input.name || 'Zakázka' : 'Nová zakázka') : view === 'invoice' ? invoice?.number : view === 'invoices' ? 'Faktury' : view === 'catalog' ? 'Ceník' : view === 'pricingDefaults' ? 'Výchozí nastavení ceny' : 'Zakázky'}</strong></div><div className="topbar-right"><span className="today-dot"/> Připraveno k práci</div></header>
       <main className="content">

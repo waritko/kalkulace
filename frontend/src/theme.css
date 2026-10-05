@@ -1,0 +1,81 @@
+:root { color-scheme: light; }
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: calc(100% - 30px);
+  margin: 18px 15px 0;
+  padding: 12px;
+  border: 1px solid #ffffff30;
+  border-radius: 8px;
+  background: transparent;
+  color: #edf1e8;
+  font-size: 12px;
+  text-align: left;
+}
+.theme-toggle:hover { background: #ffffff0d; }
+.theme-toggle:focus-visible { outline: 2px solid #d3ad69; outline-offset: 3px; }
+.theme-state { margin-left: auto; color: #b7c6bb; font-size: 10px; }
+
+/* Screen-only colours keep invoices and workshop printouts on white paper. */
+@media screen {
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    color: #e0e9e2;
+    background: #141c18;
+    --surface: #1d2922;
+    --raised: #26362c;
+    --border: #3b4e40;
+    --text: #e0e9e2;
+    --muted: #a7b9ab;
+    --accent: #a3d6ac;
+  }
+  [data-theme='dark'] .sidebar { background: #19271f; }
+  [data-theme='dark'] :is(.topbar, .summary-card, .panel, .project-row, .result-card, .modal, .invoice-paper) {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  [data-theme='dark'] :is(.breadcrumb strong, .page-heading h1, .editor-heading h1, .summary-card strong, .panel-head h2, .section-title h2, .project-main strong, .toggle-row strong, .result-price, .result-row strong, .result-row.stronger, .table-total, .wood-summary strong, .invoice-list td strong, .modal-head h2, .modal-foot strong, .day-heading strong, .day-group h3, .invoice-top p strong, .invoice-total strong, .invoice-meta strong, .invoice-totals strong, .invoice-totals .grand, .invoice-totals .grand strong, .invoice-note strong) { color: var(--text); }
+  [data-theme='dark'] :is(.breadcrumb, .topbar-right, .page-heading p, .editor-heading p, .summary-card span, .panel-head p, .section-title p, .project-main span, .project-date, .empty p, .field>span, .toggle-row p, .result-header, .result-price-label, .result-row, .tip-card, .table-scroll th, .table-total small, .wood-summary span, .category-description, .invoice-list td, .modal-foot span, .day-heading span, .day-tabs span, .catalog-tabs span, .pricing-grid .field-help, .time-inputs label, .invoice-top p, .invoice-total span, .invoice-total small, .invoice-parties p, .invoice-meta span, .invoice-items th, .invoice-totals div, .invoice-note, .invoice-footer) { color: var(--muted); }
+  [data-theme='dark'] :is(.field>input, .field textarea, .field select, .number-wrap, .table-input, .invoice-actions select, .search) {
+    background: #162019;
+    color: var(--text);
+    border-color: var(--border);
+  }
+  [data-theme='dark'] :is(.number-wrap input, .search input) { color: var(--text); }
+  [data-theme='dark'] :is(input, textarea)::placeholder { color: #94a698; }
+  [data-theme='dark'] :is(.number-wrap span, .tabs span, .category-tabs span) { color: var(--muted); }
+  [data-theme='dark'] :is(.secondary, .ghost, .category-tabs button, .service-tabs button, .day-tabs button, .catalog-tabs button) {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  [data-theme='dark'] :is(.secondary:hover, .project-row:hover, .invoice-list tbody tr:hover) { background: var(--raised); }
+  [data-theme='dark'] :is(.project-avatar, .empty-icon, .section-icon, .next-step, .budget-box, .info-strip, .inline-empty, .add-button, .invoice-meta, .table-scroll th) {
+    background: var(--raised);
+    border-color: var(--border);
+    color: var(--muted);
+  }
+  [data-theme='dark'] :is(.next-step strong, .text-button, .budget-box strong, .add-button, .tabs button.active, .back-link:hover) { color: var(--accent); }
+  [data-theme='dark'] :is(.next-step p, .budget-box>div:not(.progress-track), .tabs button, .back-link, .row-delete, .icon-button) { color: var(--muted); }
+  [data-theme='dark'] :is(.category-tabs button.active, .service-tabs button.active, .day-tabs button.active, .catalog-tabs button.active, .add-button:hover) { background: #304d38; color: var(--accent); border-color: #668f6e; }
+  [data-theme='dark'] .tabs button.active { border-bottom-color: var(--accent); }
+  [data-theme='dark'] :is(.panel-head, .project-row, .tabs, .wood-summary, .table-scroll th, .table-scroll td, .modal-head, .modal-divider, .modal-foot, .day-tabs, .invoice-items th, .invoice-items td, .invoice-footer) { border-color: var(--border); }
+  [data-theme='dark'] :is(.divider, .result-divider, .progress-track) { background: var(--border); }
+  [data-theme='dark'] .switch { background: #58695c; }
+  [data-theme='dark'] .switch.on { background: #3c7751; }
+  [data-theme='dark'] :is(.eyebrow, .modal-divider, .invoice-kicker, .invoice-parties span) { color: #d3ad69; }
+  [data-theme='dark'] .summary-icon.amber { background: #423823; color: #e2bb79; }
+  [data-theme='dark'] .summary-icon.green { background: #294632; color: #a3d6ac; }
+  [data-theme='dark'] .summary-icon.cream { background: #3a3d29; color: #c6c794; }
+  [data-theme='dark'] :is(.alert.error, .budget-box.over) { background: #442d25; border-color: #7c5141; color: #ffb59f; }
+  [data-theme='dark'] :is(.budget-box.over strong, .danger, .row-delete:hover) { color: #ffb59f; }
+  [data-theme='dark'] .alert.success { background: #294632; border-color: #507557; color: #b5dfb8; }
+  [data-theme='dark'] .status { background: #303f4b; color: #bfd3e1; }
+  [data-theme='dark'] .status.uhrazená { background: #294632; color: #b5dfb8; }
+  [data-theme='dark'] .status.stornovaná { background: #442d25; color: #ffb59f; }
+  [data-theme='dark'] :is(.invoice-top, .invoice-totals .grand) { border-color: #668f6e; }
+  [data-theme='dark'] :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+}
