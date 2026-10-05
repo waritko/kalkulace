@@ -36,6 +36,7 @@ if (staticRoot is not null)
     app.MapFallback(async context =>
     {
         if (context.Request.Path.StartsWithSegments("/api")) { context.Response.StatusCode = 404; return; }
+        context.Response.ContentType = "text/html; charset=utf-8";
         await context.Response.SendFileAsync(Path.Combine(staticRoot, "index.html"));
     });
 }

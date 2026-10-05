@@ -4,7 +4,7 @@ Webová aplikace podle `kalkulace.xlsx`. Backend je ASP.NET Core 9, frontend Rea
 
 ## Spuštění
 
-Požadavky: .NET SDK 9 nebo novější a Node.js 20 nebo novější. Z kořene projektu spusťte:
+Požadavky: .NET SDK 9 nebo novější (včetně .NET 10) a Node.js 20 nebo novější. Z kořene projektu spusťte:
 
 ```powershell
 .\run-local.ps1
@@ -22,9 +22,22 @@ cd ..
 dotnet run --project backend/Kalkulace.Api.csproj --urls http://localhost:5080
 ```
 
-Otevřete `http://localhost:5080`. Backend podává sestavený frontend z `frontend/dist`. Při samostatném nasazení zkopírujte obsah `frontend/dist` do `backend/wwwroot` před publikováním backendu.
+Otevřete `http://localhost:5080`. Backend podává sestavený frontend z `frontend/dist`. Pro samostatné nasazení použijte níže uvedený release balíček.
 
 Pro vývoj frontendu spusťte v druhém terminálu `cd frontend; npm run dev` a otevřete `http://localhost:5173`. Vite předává `/api` na backend na portu 5080.
+
+## Release balíček a nasazení
+
+Z kořene projektu spusťte `./build.ps1` (Windows PowerShell 5.1 nebo PowerShell 7; na Linuxu `pwsh ./build.ps1`). Vyžaduje .NET SDK 9 nebo novější (včetně .NET 10) a Node.js 20 nebo novější s npm.
+
+Skript provede `npm ci`, sestaví frontend, publikuje backend v konfiguraci **Release** a vytvoří `artifacts/kalkulace-release.zip` i rozbalenou složku `artifacts/kalkulace-release` se stejnými soubory. ZIP obsahuje frontend ve `wwwroot`, spouštěcí skripty a `appsettings.Production.json` s konfigurací MySQL. Lokální databáze a `appsettings.Development.json` se nebalí. Úspěšný build nahradí předchozí ZIP i rozbalenou složku.
+
+Balíček je společný pro Windows a Linux a vyžaduje nainstalovaný **ASP.NET Core Runtime 9 nebo 10** pro daný systém a architekturu. Node.js ani SDK nejsou na cílovém stroji potřeba. Použijte složku `artifacts/kalkulace-release` nebo rozbalte ZIP do adresáře s právem zápisu a spusťte:
+
+- Windows: `run.bat`
+- Linux: `sh ./run.sh` (případně `chmod +x run.sh` a `./run.sh`)
+
+Aplikace běží na `http://localhost:5080`; ukončíte ji pomocí `Ctrl+C`. Adresu lze změnit proměnnou `ASPNETCORE_URLS` nebo argumentem, například `sh ./run.sh --urls http://localhost:8080` či `run.bat --urls http://localhost:8080`. Skripty fungují i při spuštění z jiného pracovního adresáře. Balíček ve výchozím prostředí `Production` používá MySQL na `localhost`, databázi `kalkulace`, uživatele `kalkulace` a heslo `fillMeIn`. Před spuštěním vytvořte databázi a uživatele s právy k této databázi. Připojení lze upravit v přibaleném `appsettings.Production.json` nebo proměnnou `ConnectionStrings__MySql`. Schéma vytvoří aplikace při prvním spuštění.
 
 ## Databáze
 
@@ -57,7 +70,7 @@ Při běžícím backendu lze spustit `./tests/api-smoke.ps1`. Test ověřuje vz
 
 Konfigurace v `.teamcity/settings.kts` vytváří build **Build and smoke tests** se spouštěním při změně ve VCS. V TeamCity vytvořte projekt z tohoto Git repozitáře a zapněte **Versioned Settings** ve formátu Kotlin DSL s cestou `.teamcity`. Build používá stejný VCS root jako nastavení projektu. Verzi DSL v `settings.kts` upravte podle verze vašeho TeamCity serveru.
 
-Agent musí běžet na Windows a mít v `PATH` PowerShell 5.1, .NET SDK 9 a Node.js 20 nebo novější (včetně `npm.cmd`). Skript spustí `npm ci`, sestaví frontend a backend, spustí API na volném lokálním portu se samostatnou SQLite databází a provede všechny tři smoke testy. Výsledky jsou vidět jako testy v TeamCity; logy API se ukládají jako artefakty `api-logs`. Databáze a proces API se po běhu odstraní.
+Agent musí běžet na Windows a mít v `PATH` PowerShell 5.1, .NET SDK 9 nebo novější (včetně .NET 10) a Node.js 20 nebo novější (včetně `npm.cmd`). Skript spustí `npm ci`, sestaví frontend a backend, spustí API na volném lokálním portu se samostatnou SQLite databází a provede všechny tři smoke testy. Výsledky jsou vidět jako testy v TeamCity; logy API se ukládají jako artefakty `api-logs`. Databáze a proces API se po běhu odstraní.
 
 Stejný postup lze spustit lokálně z kořene repozitáře:
 
