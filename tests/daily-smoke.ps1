@@ -31,6 +31,32 @@ try {
   )
   $fractionalResult = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($fractional | ConvertTo-Json -Depth 10)))
   if ($fractionalResult.laborCost -ne 125 -or $fractionalResult.serviceCost -ne 15) { throw 'Součet času se nezaokrouhlil nahoru po čtvrthodinách.' }
+  $acrossDays = $project.Clone()
+  $acrossDays.lines = @(
+    @{ name = 'Práce truhláře'; category = 'labor'; unit = 'hod'; quantity = 0.1; unitPrice = 500; vatRate = 21; workDate = '2026-10-01' },
+    @{ name = 'Práce truhláře'; category = 'labor'; unit = 'hod'; quantity = 0.1; unitPrice = 500; vatRate = 21; workDate = '2026-10-02' },
+    @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.1; unitPrice = 30; vatRate = 21; workDate = '2026-10-01'; usesExtraction = $true; usesVacuum = $true },
+    @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.1; unitPrice = 30; vatRate = 21; workDate = '2026-10-02'; usesExtraction = $true; usesVacuum = $true }
+  )
+  $acrossDaysJson = [Text.Encoding]::UTF8.GetBytes(($acrossDays | ConvertTo-Json -Depth 10))
+  $acrossDaysResult = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body $acrossDaysJson
+  if ($acrossDaysResult.laborCost -ne 250 -or $acrossDaysResult.serviceCost -ne 7.5) { throw 'Mechanizace se musí zaokrouhlit až po součtu všech dní; práce zůstává zaokrouhlená po dnech.' }
+  foreach ($name in @('Pokosová pila', 'Odsávání', 'Vysavač')) {
+    $timedRows = @($acrossDaysResult.lines | Where-Object name -eq $name)
+    if ($timedRows.Count -ne 2 -or $timedRows[0].quantity -ne 0.1 -or $timedRows[1].quantity -ne 0.15) { throw "Zaokrouhlení napříč dny neplatí pro položku $name." }
+  }
+  $separateRates = $project.Clone()
+  $separateRates.lines = @(
+    @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.1; unitPrice = 30; vatRate = 21; workDate = '2026-10-01' },
+    @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.1; unitPrice = 40; vatRate = 21; workDate = '2026-10-02' },
+    @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.1; unitPrice = 30; vatRate = 12; workDate = '2026-10-02' },
+    @{ name = 'Hoblovka'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.1; unitPrice = 30; vatRate = 21; workDate = '2026-10-02' },
+    @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'ks'; quantity = 0.1; unitPrice = 30; vatRate = 21; workDate = '2026-10-02' }
+  )
+  $separateResult = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($separateRates | ConvertTo-Json -Depth 10)))
+  if ($separateResult.serviceCost -ne 35.5) { throw 'Různé stroje, ceny a DPH se nesmí slučovat; jiné jednotky se nezaokrouhlují.' }
+  $updated = Invoke-RestMethod "$base/projects/$($created.id)" -Method Put -ContentType 'application/json; charset=utf-8' -Body $acrossDaysJson
+  if (@($updated.input.lines | Where-Object quantity -ne 0.1).Count -ne 0 -or $updated.result.serviceCost -ne 7.5) { throw 'Uložení musí zachovat zadaný čas a kalkulovat zaokrouhlený součet dní.' }
   $invoiceRequest = @{
     number = "DAILY-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"; issuedOn = '2026-10-03'; dueOn = '2026-10-17'
     customerName = 'Test'; supplierName = 'Test'
@@ -39,6 +65,8 @@ try {
   $snapshot = Invoke-RestMethod "$base/invoices/$($invoice.id)"
   $snapshotLabor = @($snapshot.result.lines | Where-Object category -eq 'labor')
   if ($snapshotLabor.Count -ne 2 -or $snapshotLabor[0].workDate -ne '2026-10-01' -or $snapshotLabor[1].workDate -ne '2026-10-02') { throw 'Faktura nezachovala denní záznamy.' }
+  $snapshotMachinery = @($snapshot.result.lines | Where-Object name -eq 'Pokosová pila')
+  if ($snapshot.result.serviceCost -ne 7.5 -or $snapshotMachinery.Count -ne 2 -or $snapshotMachinery[0].quantity -ne 0.1 -or $snapshotMachinery[1].quantity -ne 0.15 -or $snapshotMachinery[0].workDate -ne '2026-10-01' -or $snapshotMachinery[1].workDate -ne '2026-10-02') { throw 'Faktura musí použít mechanizaci zaokrouhlenou až po součtu dní.' }
   Write-Output 'Denní práce a mechanizace: uložení, příplatky, výpočet a faktura OK.'
 } finally {
   Invoke-RestMethod "$base/projects/$($created.id)" -Method Delete | Out-Null

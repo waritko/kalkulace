@@ -26,7 +26,7 @@ export function DailyEntries({ lines, catalog, onChange }: Props) {
   const entries = daily.filter(({ line }) => (line.workDate || '') === activeDay)
   const billableQuantities = roundedTimeQuantities(lines)
   const laborTime = entries.filter(({ line }) => line.category === 'labor' && isTimedLine(line)).reduce((sum, { index }) => sum + billableQuantities[index], 0)
-  const machineryTime = entries.filter(({ line }) => line.category === 'service' && !line.automaticMachineryCharge && isTimedLine(line)).reduce((sum, { index }) => sum + billableQuantities[index], 0)
+  const machineryTime = entries.filter(({ line }) => line.category === 'service' && !line.automaticMachineryCharge && isTimedLine(line)).reduce((sum, { line }) => sum + line.quantity, 0)
   const laborCatalog = catalog.items.filter(item => item.category === 'labor')
   const machineryCatalog = catalog.items.filter(item => item.category === 'service' && item.serviceCategory === 'machinery' && !['Odsávání', 'Vysavač'].includes(item.name))
 
@@ -48,7 +48,7 @@ export function DailyEntries({ lines, catalog, onChange }: Props) {
     <div className="day-create"><label className="field"><span>Datum nového dne</span><input type="date" value={newDay} onChange={event => setNewDay(event.target.value)}/></label><button className="secondary" disabled={!newDay} onClick={() => setSelectedDay(newDay)}><Plus size={17}/> Přidat den</button></div>
     {days.length > 0 && <div className="day-tabs" aria-label="Dny zakázky">{days.map(day => <button type="button" key={day} className={activeDay === day ? 'active' : ''} aria-current={activeDay === day ? 'date' : undefined} onClick={() => setSelectedDay(day)}>{formatDay(day)} <span>{daily.filter(({ line }) => (line.workDate || '') === day && !line.automaticMachineryCharge).length}</span></button>)}</div>}
     {activeDay === undefined ? <div className="inline-empty">Zvolte datum a přidejte první den.</div> : <>
-      <div className="day-heading"><div><strong>{formatDay(activeDay)}</strong><span>Práce {formatTime(laborTime)} · mechanizace {formatTime(machineryTime)} (čas po položkách zaokrouhlený nahoru na 15 minut)</span></div></div>
+      <div className="day-heading"><div><strong>{formatDay(activeDay)}</strong><span>Práce {formatTime(laborTime)} · mechanizace {formatTime(machineryTime)} (práce zaokrouhlená po položkách na 15 minut, mechanizace v zadaném čase)</span><span>Mechanizace se zaokrouhluje nahoru na 15 minut až po součtu všech dní pro stejnou položku, cenu a DPH. Rozdíl je zahrnutý v ceně posledního záznamu.</span></div></div>
       {(['labor', 'machinery'] as const).map(kind => {
         const rows = entries.filter(({ line }) => kind === 'labor' ? line.category === 'labor' : line.category === 'service')
         const choices = kind === 'labor' ? laborCatalog : machineryCatalog

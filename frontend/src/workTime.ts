@@ -17,7 +17,7 @@ export const roundedTimeQuantities = (lines: CostLine[]) => {
   const groups = new Map<string, number[]>()
   lines.forEach((line, index) => {
     if (!isTimedLine(line)) return
-    const key = JSON.stringify([line.workDate || '', line.category, line.name, line.unitPrice, line.vatRate, line.automaticMachineryCharge || ''])
+    const key = JSON.stringify([line.category === 'labor' ? line.workDate || '' : '', line.category, line.name, line.unitPrice, line.vatRate, line.automaticMachineryCharge || ''])
     groups.set(key, [...(groups.get(key) || []), index])
   })
   for (const indices of groups.values()) {

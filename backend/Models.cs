@@ -107,13 +107,13 @@ public static class Calculator
             woodVolume += volume;
             lines.Add(new(part.Name, "material", "m³", volume, part.PricePerM3, Round(volume * part.PricePerM3 * (1 + input.WoodReservePercent / 100m)), 21, area, volume, board));
         }
-        // Round the sum for each dated, identically priced work or machinery item.
+        // Round identically priced labor per day and machinery across all days.
         // Keep the reported quantities in the project; assign the rounding difference
         // to the final calculated row so the invoice rows still add up exactly.
         var billableQuantities = input.Lines.Select(line => line.Quantity).ToArray();
         var timedGroups = input.Lines.Select((line, index) => (line, index))
             .Where(entry => entry.line.Unit == "hod" && (entry.line.Category == "labor" || entry.line.Category == "service" && entry.line.ServiceCategory == "machinery"))
-            .GroupBy(entry => (entry.line.WorkDate, entry.line.Category, entry.line.Name, entry.line.UnitPrice, entry.line.VatRate, entry.line.AutomaticMachineryCharge));
+            .GroupBy(entry => (WorkDate: entry.line.Category == "labor" ? entry.line.WorkDate : null, entry.line.Category, entry.line.Name, entry.line.UnitPrice, entry.line.VatRate, entry.line.AutomaticMachineryCharge));
         foreach (var group in timedGroups)
         {
             var total = group.Sum(entry => entry.line.Quantity);
