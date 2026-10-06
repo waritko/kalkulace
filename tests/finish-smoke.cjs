@@ -17,6 +17,41 @@ async function api(path, method = 'GET', body) {
     const loaded = await api(`/projects/${created.id}`)
     assert.equal(loaded.input.woodParts[0].applyFinish, true)
     assert.equal(loaded.input.lines.find(line => line.automaticFinish).quantity, 2.2)
+
+    // The seeded catalog has multiple finishes; selecting a later one must survive synchronization.
+    const catalog = await api('/catalog')
+    const finishes = catalog.items.filter(item => item.category === 'material' && item.materialType === 'finish')
+    assert.ok(finishes.length >= 2)
+    const selected = finishes[1]
+    input.lines = [{ ...selected, quantity: 999, automaticFinish: true }]
+    const changed = await api('/calculate', 'POST', input)
+    const selectedLine = changed.lines.find(line => line.name === selected.name)
+    assert.equal(selectedLine.quantity, 2.2)
+    assert.equal(selectedLine.unit, selected.unit)
+    assert.equal(selectedLine.unitPrice, selected.unitPrice)
+    assert.equal(selectedLine.vatRate, selected.vatRate)
+    assert.equal(changed.lines.some(line => line.name === finishes[0].name), false)
+
+    await api(`/projects/${created.id}`, 'PUT', input)
+    const reloaded = await api(`/projects/${created.id}`)
+    const savedFinish = reloaded.input.lines.find(line => line.automaticFinish)
+    assert.equal(savedFinish.name, selected.name)
+    assert.equal(savedFinish.unit, selected.unit)
+    assert.equal(savedFinish.unitPrice, selected.unitPrice)
+    assert.equal(savedFinish.vatRate, selected.vatRate)
+    assert.equal(savedFinish.quantity, 2.2)
+
+    // Changes to area update only the quantity and preserve the project-specific price and VAT.
+    input.lines = [{ ...savedFinish, unitPrice: 123, vatRate: 12 }]
+    input.woodParts[0].quantity = 3
+    const resized = await api(`/projects/${created.id}`, 'PUT', input)
+    const resizedFinish = resized.input.lines.find(line => line.automaticFinish)
+    assert.equal(resizedFinish.name, selected.name)
+    assert.equal(resizedFinish.unit, selected.unit)
+    assert.equal(resizedFinish.unitPrice, 123)
+    assert.equal(resizedFinish.vatRate, 12)
+    assert.equal(resizedFinish.quantity, 3.3)
+
     input.woodParts[0].applyFinish = false
     const updated = await api(`/projects/${created.id}`, 'PUT', input)
     assert.equal(updated.input.lines.some(line => line.automaticFinish), false)

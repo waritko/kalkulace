@@ -177,13 +177,13 @@ public static class FinishCharges
         var lines = input.Lines.Where(line => !line.AutomaticFinish).ToList();
         var area = input.WoodParts.Where(part => part.ApplyFinish)
             .Sum(part => part.WidthMm * part.LengthMm * part.Quantity / 1_000_000m);
+        var existing = input.Lines.FirstOrDefault(line => line.AutomaticFinish);
         var finish = catalog.Items.FirstOrDefault(item => item.Category == "material" && item.MaterialType == "finish");
-        if (area > 0 && finish is not null)
+        if (area > 0 && (existing is not null || finish is not null))
         {
-            var existing = input.Lines.FirstOrDefault(line => line.AutomaticFinish);
             lines.Add(existing is null
-                ? new CostLine(finish.Name, "material", finish.Unit, area * 2m * 1.1m, finish.UnitPrice, finish.VatRate, MaterialType: "finish", AutomaticFinish: true)
-                : existing with { Name = finish.Name, Category = "material", Unit = finish.Unit, Quantity = area * 2m * 1.1m, MaterialType = "finish" });
+                ? new CostLine(finish!.Name, "material", finish.Unit, area * 2m * 1.1m, finish.UnitPrice, finish.VatRate, MaterialType: "finish", AutomaticFinish: true)
+                : existing with { Quantity = area * 2m * 1.1m });
         }
         return input with { Lines = lines };
     }
