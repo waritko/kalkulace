@@ -1,4 +1,10 @@
-param()
+param(
+    [string]$ScpDestination = 'waritko@mrazitko.varak.net:/home/waritko/kalkulace',
+    [ValidateRange(1, 65535)]
+    [int]$ScpPort = 22,
+    [string]$ScpIdentityFile,
+    [switch]$SkipScp
+)
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -6,6 +12,21 @@ $npm = if ($env:OS -eq 'Windows_NT') { 'npm.cmd' } else { 'npm' }
 foreach ($command in @('dotnet', $npm)) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
         throw "Required command '$command' was not found. Install .NET SDK 9 or newer (including .NET 10) and Node.js 20 or newer."
+    }
+}
+
+if (-not $SkipScp) {
+    if ([string]::IsNullOrWhiteSpace($ScpDestination) -or $ScpDestination.StartsWith('-')) {
+        throw 'Specify a valid SCP destination or use -SkipScp.'
+    }
+    if (-not (Get-Command scp -ErrorAction SilentlyContinue)) {
+        throw "Required command 'scp' was not found. Install OpenSSH client or use -SkipScp."
+    }
+    if ($ScpIdentityFile -and -not (Test-Path -LiteralPath $ScpIdentityFile -PathType Leaf)) {
+        throw "SCP identity file was not found: $ScpIdentityFile"
+    }
+    if ($ScpIdentityFile) {
+        $ScpIdentityFile = (Resolve-Path -LiteralPath $ScpIdentityFile).ProviderPath
     }
 }
 
@@ -46,6 +67,18 @@ try {
     Move-Item -LiteralPath $temporaryArchive -Destination $archive -Force
     Write-Host "Release package: $archive"
     Write-Host "Unpacked release: $release"
+
+    if (-not $SkipScp) {
+        $scpArguments = @('-r', '-P', $ScpPort.ToString())
+        if ($ScpIdentityFile) { $scpArguments += @('-i', $ScpIdentityFile) }
+        # Copy directory contents, including hidden files, without nesting the release folder.
+        Push-Location $release
+        try {
+            Write-Host "Copying unpacked release to $ScpDestination"
+            & scp @scpArguments '.' $ScpDestination
+            if ($LASTEXITCODE -ne 0) { throw "SCP upload failed (exit code $LASTEXITCODE). Local release is available at $release" }
+        } finally { Pop-Location }
+    }
 } finally {
     # Only remove this invocation's generated staging directory.
     $resolvedStaging = [System.IO.Path]::GetFullPath($staging)

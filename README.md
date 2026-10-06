@@ -32,6 +32,16 @@ Z kořene projektu spusťte `./build.ps1` (Windows PowerShell 5.1 nebo PowerShel
 
 Skript provede `npm ci`, sestaví frontend, publikuje backend v konfiguraci **Release** a vytvoří `artifacts/kalkulace-release.zip` i rozbalenou složku `artifacts/kalkulace-release` se stejnými soubory. ZIP obsahuje frontend ve `wwwroot`, spouštěcí skripty a `appsettings.Production.json` s konfigurací MySQL. Lokální databáze a `appsettings.Development.json` se nebalí. Úspěšný build nahradí předchozí ZIP i rozbalenou složku.
 
+Po vytvoření balíčku skript přes SCP zkopíruje obsah rozbalené složky přímo do `waritko@mrazitko.varak.net:/home/waritko/kalkulace`. Vyžaduje klienta OpenSSH (`scp` v `PATH`) a SSH přístup s právem zápisu do cílového adresáře. Používá běžnou konfiguraci SSH; port, klíč a cíl lze změnit parametry. Při chybě přenosu skript skončí chybou, lokální ZIP i rozbalená složka zůstanou k dispozici. SCP přepíše stejnojmenné soubory, ale neodstraní staré soubory na serveru ani nerestartuje aplikaci.
+
+```powershell
+# Pouze lokální build bez SCP
+./build.ps1 -SkipScp
+
+# Vlastní cíl, SSH port a privátní klíč
+./build.ps1 -ScpDestination 'user@server:/srv/kalkulace' -ScpPort 2222 -ScpIdentityFile "$HOME/.ssh/id_ed25519"
+```
+
 Balíček je společný pro Windows a Linux a vyžaduje nainstalovaný **ASP.NET Core Runtime 9 nebo 10** pro daný systém a architekturu. Node.js ani SDK nejsou na cílovém stroji potřeba. Použijte složku `artifacts/kalkulace-release` nebo rozbalte ZIP do adresáře s právem zápisu a spusťte:
 
 - Windows: `run.bat`
