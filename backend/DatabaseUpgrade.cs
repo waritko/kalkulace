@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -44,7 +45,11 @@ public static class DatabaseUpgrade
         var projectPayload = await HasColumn(db, "Projects", "Payload");
         var invoiceSnapshot = await HasColumn(db, "Invoices", "Snapshot");
         var catalogExists = await HasTable(db, "CatalogSettings");
-        if (!projectPayload && !invoiceSnapshot && !catalogExists) return;
+        if (!projectPayload && !invoiceSnapshot && !catalogExists)
+        {
+            await UpgradeDecimalStorage(db);
+            return;
+        }
 
         // EnsureCreated leaves existing databases alone. Add the new tables before reading legacy data.
         var script = db.Database.GenerateCreateScript();
@@ -98,6 +103,100 @@ public static class DatabaseUpgrade
         if (projectPayload) await db.Database.ExecuteSqlRawAsync("ALTER TABLE Projects DROP COLUMN Payload");
         if (invoiceSnapshot) await db.Database.ExecuteSqlRawAsync("ALTER TABLE Invoices DROP COLUMN Snapshot");
         if (catalogExists) await db.Database.ExecuteSqlRawAsync("DROP TABLE CatalogSettings");
+        await UpgradeDecimalStorage(db);
+    }
+
+    private static async Task UpgradeDecimalStorage(AppDb db)
+    {
+        // SQLite has no fixed decimal scale. Upgrade values exactly in C# instead of
+        // converting currency through SQLite's binary floating-point ROUND function.
+        await db.Database.OpenConnectionAsync();
+        try
+        {
+            await using var transaction = db.Database.IsSqlite()
+                ? await db.Database.GetDbConnection().BeginTransactionAsync() : null;
+            if (transaction is not null)
+            {
+                await using var version = db.Database.GetDbConnection().CreateCommand();
+                version.Transaction = transaction;
+                version.CommandText = "CREATE TABLE IF NOT EXISTS DecimalStorageVersion (Version INTEGER PRIMARY KEY)";
+                await version.ExecuteNonQueryAsync();
+                version.CommandText = "SELECT 1 FROM DecimalStorageVersion WHERE Version = 1";
+                if (await version.ExecuteScalarAsync() is not null) return;
+            }
+            foreach (var entity in db.Model.GetEntityTypes())
+            {
+                var table = entity.GetTableName()!;
+                var store = Microsoft.EntityFrameworkCore.Metadata.StoreObjectIdentifier.Table(table, entity.GetSchema());
+                foreach (var property in entity.GetProperties())
+                {
+                    if (DecimalStorage.Scale(property) is not int scale) continue;
+                    var column = property.GetColumnName(store)!;
+                    if (!db.Database.IsSqlite())
+                    {
+                        await using var check = db.Database.GetDbConnection().CreateCommand();
+                        check.CommandText = "SELECT NUMERIC_PRECISION, NUMERIC_SCALE FROM information_schema.columns "
+                            + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table AND COLUMN_NAME = @column";
+                        AddParameter(check, "@table", table);
+                        AddParameter(check, "@column", column);
+                        bool matches;
+                        await using (var reader = await check.ExecuteReaderAsync())
+                            matches = await reader.ReadAsync() && !reader.IsDBNull(0) && !reader.IsDBNull(1)
+                                && Convert.ToInt32(reader.GetValue(0)) == 18 && Convert.ToInt32(reader.GetValue(1)) == scale;
+                        if (!matches)
+                        {
+                            // Identifiers come from the EF model, never from user input.
+                            await using var alter = db.Database.GetDbConnection().CreateCommand();
+                            alter.CommandText = $"ALTER TABLE `{table}` MODIFY COLUMN `{column}` decimal(18,{scale}) "
+                                + (property.IsNullable ? "NULL" : "NOT NULL");
+                            await alter.ExecuteNonQueryAsync();
+                        }
+                        continue;
+                    }
+
+                    var updates = new List<(long RowId, decimal Value)>();
+                    await using (var read = db.Database.GetDbConnection().CreateCommand())
+                    {
+                        read.Transaction = transaction;
+                        read.CommandText = $"SELECT rowid, \"{column}\" FROM \"{table}\" WHERE \"{column}\" IS NOT NULL";
+                        await using var reader = await read.ExecuteReaderAsync();
+                        while (await reader.ReadAsync())
+                        {
+                            var value = decimal.Parse(reader.GetString(1), NumberStyles.Float, CultureInfo.InvariantCulture);
+                            var rounded = Math.Round(value, scale, MidpointRounding.AwayFromZero);
+                            if (value != rounded) updates.Add((reader.GetInt64(0), rounded));
+                        }
+                    }
+                    foreach (var (rowId, value) in updates)
+                    {
+                        await using var update = db.Database.GetDbConnection().CreateCommand();
+                        update.Transaction = transaction;
+                        update.CommandText = $"UPDATE \"{table}\" SET \"{column}\" = @value WHERE rowid = @rowid";
+                        AddParameter(update, "@value", value.ToString(CultureInfo.InvariantCulture));
+                        AddParameter(update, "@rowid", rowId);
+                        await update.ExecuteNonQueryAsync();
+                    }
+                }
+            }
+            if (transaction is not null)
+            {
+                await using var version = db.Database.GetDbConnection().CreateCommand();
+                version.Transaction = transaction;
+                version.CommandText = "INSERT INTO DecimalStorageVersion (Version) VALUES (1)";
+                await version.ExecuteNonQueryAsync();
+                await transaction.CommitAsync();
+            }
+        }
+        finally { await db.Database.CloseConnectionAsync(); }
+        db.ChangeTracker.Clear();
+    }
+
+    private static void AddParameter(DbCommand command, string name, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
     }
 
     private static async Task AddProductionColumns(AppDb db)
@@ -141,19 +240,19 @@ public static class DatabaseUpgrade
         if (await HasTable(db, "PricingDefaults"))
         {
             if (!await HasColumn(db, "PricingDefaults", "LamellaLengthExtraMm"))
-                await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults ADD COLUMN LamellaLengthExtraMm decimal(18,2) NOT NULL DEFAULT 50");
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults ADD COLUMN LamellaLengthExtraMm decimal(18,1) NOT NULL DEFAULT 50");
             if (!await HasColumn(db, "PricingDefaults", "LamellaMergeToleranceMm"))
-                await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults ADD COLUMN LamellaMergeToleranceMm decimal(18,2) NOT NULL DEFAULT 50");
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults ADD COLUMN LamellaMergeToleranceMm decimal(18,1) NOT NULL DEFAULT 50");
             if (!await HasColumn(db, "PricingDefaults", "GlueBoardWastePercent"))
-                await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults ADD COLUMN GlueBoardWastePercent decimal(18,2) NOT NULL DEFAULT 10");
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults ADD COLUMN GlueBoardWastePercent decimal(18,1) NOT NULL DEFAULT 10");
         }
         if (!await HasTable(db, "ProjectDetails")) return;
         if (!await HasColumn(db, "ProjectDetails", "LamellaLengthExtraMm"))
-            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN LamellaLengthExtraMm decimal(18,2) NOT NULL DEFAULT 50");
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN LamellaLengthExtraMm decimal(18,1) NOT NULL DEFAULT 50");
         if (!await HasColumn(db, "ProjectDetails", "LamellaMergeToleranceMm"))
-            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN LamellaMergeToleranceMm decimal(18,2) NOT NULL DEFAULT 50");
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN LamellaMergeToleranceMm decimal(18,1) NOT NULL DEFAULT 50");
         if (!await HasColumn(db, "ProjectDetails", "GlueBoardWastePercent"))
-            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN GlueBoardWastePercent decimal(18,2) NOT NULL DEFAULT 10");
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN GlueBoardWastePercent decimal(18,1) NOT NULL DEFAULT 10");
     }
 
     private static async Task AddCuttingPlanColumns(AppDb db)

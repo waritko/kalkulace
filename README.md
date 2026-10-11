@@ -55,6 +55,10 @@ SQLite používá soubor `backend/Data/kalkulace.db` a při prvním spuštění 
 
 Zakázky, položky, ceník a snímky faktur jsou uloženy v relačních tabulkách s cizími klíči. Při spuštění nad starší databází aplikace převede obsah sloupců `Projects.Payload`, `Invoices.Snapshot` a `CatalogSettings.Payload` do nových tabulek a staré sloupce odstraní. Před prvním spuštěním nové verze si vytvořte zálohu databáze.
 
+Desetinné rozměry v milimetrech a procenta se ukládají na jedno desetinné místo, peněžní hodnoty na dvě. Zaokrouhlení při přesné polovině směřuje od nuly (například 12,345 Kč → 12,35 Kč). MySQL používá sloupce `DECIMAL(18,1)` a `DECIMAL(18,2)`; pro SQLite stejné pravidlo zajišťuje aplikace při ukládání. Množství, zaznamenaný čas, plochy a objemy zachovávají původní přesnost. Skladové rozměry a celočíselné parametry nářezového plánu se nadále zadávají v celých mm.
+
+Při prvním spuštění této verze aplikace automaticky upraví existující MySQL sloupce a zaokrouhlí stávající hodnoty; v SQLite proběhne jednorázový převod v transakci. Převod zahrnuje také jednotlivé číselné hodnoty snímků faktur, ale faktury nepřepočítává ze zakázek. Uložené JSON snímky nářezových plánů zůstávají beze změny.
+
 ## Sklad fošen
 
 V nabídce **Sklad fošen** se každý kus přijímá samostatně zadáním dřeviny, šířky, tloušťky a libovolné kladné délky v celých milimetrech. Pole **Délka (mm)** nabízí hodnoty 3000, 4000 a 5000 mm (3/4/5 m); lze také napsat vlastní délku, například 2755 mm. Dřevinu lze vybrat z návrhů ceníku nebo zadat vlastní. Tloušťku dostupného kusu lze upravit přímo v tabulce; hodnota se uloží po opuštění pole. U starších kusů je tloušťka neznámá a je nutné ji doplnit před použitím v nářezovém plánu. Rozřezané kusy předávají tloušťku svým potomkům. Sklad se ukládá do databáze; při spuštění se doplní potřebná tabulka a sloupce i do existující databáze.
@@ -106,7 +110,7 @@ Při běžícím backendu lze spustit `./tests/api-smoke.ps1`. Test ověřuje vz
 
 Konfigurace v `.teamcity/settings.kts` vytváří build **Build and smoke tests** se spouštěním při změně ve VCS. V TeamCity vytvořte projekt z tohoto Git repozitáře a zapněte **Versioned Settings** ve formátu Kotlin DSL s cestou `.teamcity`. Build používá stejný VCS root jako nastavení projektu. Verzi DSL v `settings.kts` upravte podle verze vašeho TeamCity serveru.
 
-Agent musí běžet na Windows a mít v `PATH` PowerShell 5.1, .NET SDK 9 nebo novější (včetně .NET 10) a Node.js 20 nebo novější (včetně `npm.cmd`). Skript spustí `npm ci`, sestaví frontend a backend, spustí API na volném lokálním portu se samostatnou SQLite databází a provede všech pět smoke testů, včetně příjmu a rozřezání fošen a nářezového plánu. Výsledky jsou vidět jako testy v TeamCity; logy API se ukládají jako artefakty `api-logs`. Databáze a proces API se po běhu odstraní.
+Agent musí běžet na Windows a mít v `PATH` PowerShell 5.1, .NET SDK 9 nebo novější (včetně .NET 10) a Node.js 20 nebo novější (včetně `npm.cmd`). Skript spustí `npm ci`, sestaví frontend a backend, spustí API na volném lokálním portu se samostatnou SQLite databází a provede smoke testy, včetně příjmu a rozřezání fošen, nářezového plánu a přesnosti databázových hodnot. Test přesnosti ověřuje i převod existujících SQLite dat a definice MySQL sloupců bez připojení k MySQL serveru. Výsledky jsou vidět jako testy v TeamCity; logy API se ukládají jako artefakty `api-logs`. Databáze a proces API se po běhu odstraní.
 
 Stejný postup lze spustit lokálně z kořene repozitáře:
 

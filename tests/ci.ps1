@@ -69,6 +69,9 @@ try {
     if (-not $ready) { throw "API did not start at $baseUrl. See $stdout and $stderr." }
 
     $failed = 0
+    if (-not (Invoke-Smoke 'Decimal storage and database upgrade' {
+        Invoke-Checked 'dotnet' @('run', '--project', (Join-Path $PSScriptRoot 'DecimalStorage/DecimalStorage.csproj'), '--configuration', 'Release') $root
+    })) { $failed++ }
     if (-not (Invoke-Smoke 'Board stock' {
         & node (Join-Path $PSScriptRoot 'stock-smoke.cjs') $baseUrl
         if ($LASTEXITCODE -ne 0) { throw "stock-smoke.cjs exited with code $LASTEXITCODE" }

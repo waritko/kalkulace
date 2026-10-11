@@ -4,6 +4,27 @@ namespace Kalkulace.Api;
 
 public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
 {
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        RoundStoredDecimals();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        RoundStoredDecimals();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void RoundStoredDecimals()
+    {
+        foreach (var entry in ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified))
+            foreach (var property in entry.Properties)
+                if ((entry.State == EntityState.Added || property.IsModified)
+                    && DecimalStorage.Scale(property.Metadata) is int scale && property.CurrentValue is decimal value)
+                    property.CurrentValue = Math.Round(value, scale, MidpointRounding.AwayFromZero);
+    }
+
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<CatalogState> CatalogStates => Set<CatalogState>();
@@ -41,6 +62,14 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         modelBuilder.Entity<CatalogState>().HasMany(c => c.Items).WithOne().HasForeignKey(i => i.CatalogStateId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<CatalogWood>().HasKey(w => new { w.CatalogStateId, w.Position });
         modelBuilder.Entity<CatalogItemRow>().HasKey(i => new { i.CatalogStateId, i.Position });
+
+        foreach (var entity in modelBuilder.Model.GetEntityTypes())
+            foreach (var property in entity.GetProperties())
+                if (DecimalStorage.Scale(property) is int scale)
+                {
+                    property.SetPrecision(18);
+                    property.SetScale(scale);
+                }
     }
 }
 

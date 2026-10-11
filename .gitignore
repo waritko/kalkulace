@@ -6,5 +6,7 @@ backend/obj/
 backend/Data/
 backend/wwwroot/
 tests/.output/
+tests/**/bin/
+tests/**/obj/
 *.user
 artifacts/
