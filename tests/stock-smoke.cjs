@@ -11,7 +11,7 @@ async function api(path = '', body, status = 200) {
 ;(async () => {
   const initial = await api()
   const input = { woodType: ' Dub ', widthMm: 300, lengthMm: 3000 }
-  for (const invalid of [{ ...input, woodType: '' }, { ...input, widthMm: 0 }, { ...input, lengthMm: 2000 }])
+  for (const invalid of [{ ...input, woodType: '' }, { ...input, widthMm: 0 }, { ...input, lengthMm: 0 }, { ...input, lengthMm: -1 }, { ...input, lengthMm: 2500.5 }])
     await api('', invalid, 400)
   const board = await api('', input, 201)
   assert.equal(board.woodType, 'Dub')
@@ -37,10 +37,14 @@ async function api(path = '', body, status = 200) {
   const original = stored.find(b => b.id === board.id)
   assert.deepEqual([original.isCut, original.cutAxis, original.cutSizeMm, original.kerfMm], [true, 'length', 1000, 3])
   assert.equal(stored.filter(b => b.id >= board.id && !b.isCut).length, 5)
-  for (const lengthMm of [4000, 5000]) {
+  for (const lengthMm of [1, 750, 2000, 2755, 4000, 5000, 6123]) {
     const received = await api('', { ...input, lengthMm }, 201)
     assert.equal(received.lengthMm, lengthMm)
+    assert.equal((await api()).find(b => b.id === received.id).lengthMm, lengthMm)
   }
+  const custom = await api('', { ...input, lengthMm: 2755 }, 201)
+  const customPieces = await api(`/${custom.id}/cut`, { axis: 'length', sizeMm: 1000 })
+  assert.deepEqual(customPieces.map(b => b.lengthMm), [1000, 1752])
   // Racing requests must never create four children from the same piece.
   const concurrent = await api('', input, 201)
   const requests = await Promise.all([1, 2].map(() => fetch(`${base}/${concurrent.id}/cut`, {

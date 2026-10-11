@@ -37,8 +37,8 @@ public static class BoardStock
                 return Results.BadRequest(new { error = "Vyplňte dřevinu (nejvýše 100 znaků)." });
             if (input.WidthMm <= 0)
                 return Results.BadRequest(new { error = "Šířka musí být kladná, v celých milimetrech." });
-            if (input.LengthMm is not (3000 or 4000 or 5000))
-                return Results.BadRequest(new { error = "Prvotní délka fošny musí být 3, 4 nebo 5 m." });
+            if (input.LengthMm <= 0)
+                return Results.BadRequest(new { error = "Délka musí být kladná, v celých milimetrech." });
             var board = new StockBoard { WoodType = input.WoodType.Trim(), WidthMm = input.WidthMm, LengthMm = input.LengthMm, ThicknessMm = input.ThicknessMm };
             db.StockBoards.Add(board);
             await db.SaveChangesAsync();

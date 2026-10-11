@@ -57,7 +57,7 @@ Zakázky, položky, ceník a snímky faktur jsou uloženy v relačních tabulká
 
 ## Sklad fošen
 
-V nabídce **Sklad fošen** se každý kus přijímá samostatně zadáním dřeviny, šířky a tloušťky v celých milimetrech a délky 3, 4 nebo 5 m. Dřevinu lze vybrat z návrhů ceníku nebo zadat vlastní. Tloušťku dostupného kusu lze upravit přímo v tabulce; hodnota se uloží po opuštění pole. U starších kusů je tloušťka neznámá a je nutné ji doplnit před použitím v nářezovém plánu. Rozřezané kusy předávají tloušťku svým potomkům. Sklad se ukládá do databáze; při spuštění se doplní potřebná tabulka a sloupce i do existující databáze.
+V nabídce **Sklad fošen** se každý kus přijímá samostatně zadáním dřeviny, šířky, tloušťky a libovolné kladné délky v celých milimetrech. Pole **Délka (mm)** nabízí hodnoty 3000, 4000 a 5000 mm (3/4/5 m); lze také napsat vlastní délku, například 2755 mm. Dřevinu lze vybrat z návrhů ceníku nebo zadat vlastní. Tloušťku dostupného kusu lze upravit přímo v tabulce; hodnota se uloží po opuštění pole. U starších kusů je tloušťka neznámá a je nutné ji doplnit před použitím v nářezovém plánu. Rozřezané kusy předávají tloušťku svým potomkům. Sklad se ukládá do databáze; při spuštění se doplní potřebná tabulka a sloupce i do existující databáze.
 
 Tlačítko **Rozřezat** nejprve umožní zkrácení na délku. Zkrácené kusy lze dále krátit nebo rozřezat na šířku; po řezu na šířku lze pokračovat na šířku. Zadává se rozměr prvního kusu a prořez pily (výchozí 3 mm, lze zadat i 0). Před potvrzením se zobrazí oba výsledné rozměry. Původní kus se označí jako rozřezaný a oba nové kusy přibudou do skladu. Volba **Zobrazit i rozřezané** ukáže historii s čísly původních a vzniklých kusů. Sklad je samostatná evidence, jeho řezy neovlivňují cenové kalkulace zakázek.
 
