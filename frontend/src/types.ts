@@ -17,3 +17,6 @@ export type Invoice = InvoiceListItem & { customerAddress: string; supplierName:
 export type InvoiceRequest = { number: string; issuedOn: string; dueOn: string; customerName: string; customerAddress: string; supplierName: string; supplierAddress: string; supplierIco: string; supplierDic: string; bankAccount: string; note: string }
 
 export type CuttingPlanResult = { offcuts: { isKerf: boolean; keepInStock: boolean; boardId: number; woodType: string; boardThicknessMm: number; lengthMm: number; widthMm: number; offsetWidthMm: number; offsetLengthMm: number }[]; complete: boolean; kerfMm: number; panels: { id: number; woodType: string; boardThicknessMm: number; lengthMm: number; widthMm: number; parts: { partIndex: number; name: string; lengthMm: number; widthMm: number; offsetLengthMm: number; offsetWidthMm: number }[] }[]; lamellas: { panelId: number; boardId: number; woodType: string; boardThicknessMm: number; lengthMm: number; widthMm: number; finishedWidthMm: number; offsetWidthMm: number; offsetLengthMm: number }[]; shortages: { woodType: string; boardThicknessMm: number; lengthMm: number; missingWidthMm: number }[]; warnings: string[] }
+
+export type SaveCuttingPlanRequest = { id: string; projectId: number; input: ProjectInput; plan: CuttingPlanResult }
+export type SavedCuttingPlan = SaveCuttingPlanRequest & { savedAt: string }

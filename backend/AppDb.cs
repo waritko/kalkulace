@@ -9,12 +9,15 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<CatalogState> CatalogStates => Set<CatalogState>();
     public DbSet<PricingDefaults> PricingDefaults => Set<PricingDefaults>();
     public DbSet<StockBoard> StockBoards => Set<StockBoard>();
+    public DbSet<SavedCuttingPlan> SavedCuttingPlans => Set<SavedCuttingPlan>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<StockBoard>().Property(b => b.WoodType).HasMaxLength(100);
         modelBuilder.Entity<StockBoard>().Property(b => b.Stage).HasMaxLength(10);
         modelBuilder.Entity<StockBoard>().Property(b => b.IsCut).IsConcurrencyToken();
+        modelBuilder.Entity<StockBoard>().Property(b => b.ThicknessMm).IsConcurrencyToken();
+        modelBuilder.Entity<SavedCuttingPlan>().Property(p => p.Id).HasMaxLength(36);
         modelBuilder.Entity<ProjectDetails>().HasKey(d => d.ProjectId);
         modelBuilder.Entity<Project>().HasOne(p => p.Details).WithOne().HasForeignKey<ProjectDetails>(d => d.ProjectId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Project>().HasMany(p => p.WoodParts).WithOne().HasForeignKey(p => p.ProjectId).OnDelete(DeleteBehavior.Cascade);

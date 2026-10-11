@@ -173,6 +173,7 @@ app.MapPatch("/api/invoices/{id:int}/status", async (int id, InvoiceStatusReques
     return Results.Ok(InvoiceResponse.From(invoice));
 });
 app.MapBoardStock();
+app.MapSavedCuttingPlans();
 app.MapPost("/api/cutting-plan", async (ProjectInput input, AppDb db) =>
 {
     var errors = Validator.Validate(input);
