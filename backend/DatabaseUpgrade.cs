@@ -121,7 +121,7 @@ public static class DatabaseUpgrade
                 version.Transaction = transaction;
                 version.CommandText = "CREATE TABLE IF NOT EXISTS DecimalStorageVersion (Version INTEGER PRIMARY KEY)";
                 await version.ExecuteNonQueryAsync();
-                version.CommandText = "SELECT 1 FROM DecimalStorageVersion WHERE Version = 1";
+                version.CommandText = "SELECT 1 FROM DecimalStorageVersion WHERE Version = 2";
                 if (await version.ExecuteScalarAsync() is not null) return;
             }
             foreach (var entity in db.Model.GetEntityTypes())
@@ -182,7 +182,7 @@ public static class DatabaseUpgrade
             {
                 await using var version = db.Database.GetDbConnection().CreateCommand();
                 version.Transaction = transaction;
-                version.CommandText = "INSERT INTO DecimalStorageVersion (Version) VALUES (1)";
+                version.CommandText = "INSERT INTO DecimalStorageVersion (Version) VALUES (2)";
                 await version.ExecuteNonQueryAsync();
                 await transaction.CommitAsync();
             }

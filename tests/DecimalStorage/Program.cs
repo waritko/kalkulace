@@ -46,6 +46,8 @@ Equal(987.7m, project.WoodParts[0].LengthMm, "new length");
 Equal(25.1m, project.WoodParts[0].ThicknessMm, "new thickness");
 Equal(21900.13m, project.WoodParts[0].PricePerM3, "new wood price");
 Equal(12.35m, project.Lines[0].UnitPrice, "new unit price");
+Equal(1m, project.WoodParts[0].Quantity, "whole part quantity");
+Equal(0.123457m, project.Lines[0].Quantity, "six-place cost line quantity");
 var invoice = new Invoice { ProjectId = project.Id, Number = "precision",
     Calculation = new InvoiceCalculation { BudgetDifference = -12.345m, BudgetUsagePercent = 51.25m,
         WoodVolumeM3 = 0.000123456789m },
@@ -58,6 +60,10 @@ Equal(-12.35m, invoice.Calculation.BudgetDifference, "negative currency midpoint
 Equal(51.3m, invoice.Calculation.BudgetUsagePercent, "invoice percentage");
 
 // Simulate rows written by the old version, bypassing application rounding.
+await db.Database.ExecuteSqlRawAsync("CREATE TABLE DecimalStorageVersion (Version INTEGER PRIMARY KEY)");
+await db.Database.ExecuteSqlRawAsync("INSERT INTO DecimalStorageVersion VALUES (1)");
+await db.Database.ExecuteSqlRawAsync("UPDATE ProjectWoodPart SET Quantity = '1.5'");
+await db.Database.ExecuteSqlRawAsync("UPDATE ProjectCostLine SET Quantity = '0.123456789'");
 await db.Database.ExecuteSqlRawAsync("UPDATE ProjectWoodPart SET WidthMm = '123.45', LengthMm = '987.65', ThicknessMm = '25.05', PricePerM3 = '21900.125'");
 await db.Database.ExecuteSqlRawAsync("UPDATE ProjectDetails SET BudgetLimit = '999.995', WoodReservePercent = '7.85', LamellaLengthExtraMm = '50.05'");
 await db.Database.ExecuteSqlRawAsync("UPDATE PricingDefaults SET WoodReservePercent = '7.85'");
@@ -72,8 +78,8 @@ Equal(123.5m, loaded.WoodParts[0].WidthMm, "upgraded width");
 Equal(987.7m, loaded.WoodParts[0].LengthMm, "upgraded length");
 Equal(25.1m, loaded.WoodParts[0].ThicknessMm, "upgraded thickness");
 Equal(21900.13m, loaded.WoodParts[0].PricePerM3, "upgraded wood price");
-Equal(1.23456789m, loaded.WoodParts[0].Quantity, "unrounded part quantity");
-Equal(0.123456789m, loaded.Lines[0].Quantity, "unrounded recorded time");
+Equal(2m, loaded.WoodParts[0].Quantity, "upgraded whole part quantity");
+Equal(0.123457m, loaded.Lines[0].Quantity, "upgraded recorded time");
 Equal(7.9m, (await db.PricingDefaults.SingleAsync()).WoodReservePercent, "upgraded defaults");
 Equal(1234.57m, (await db.Set<CatalogWood>().SingleAsync()).Price32, "upgraded catalog");
 var savedInvoice = await db.Invoices.Include(i => i.Calculation).Include(i => i.Lines).Include(i => i.Vat).SingleAsync();
@@ -81,6 +87,7 @@ Equal(-12.35m, savedInvoice.Calculation.BudgetDifference, "upgraded negative cur
 Equal(51.3m, savedInvoice.Calculation.BudgetUsagePercent, "upgraded invoice percentage");
 Equal(0.000123456789m, savedInvoice.Calculation.WoodVolumeM3, "unrounded wood volume");
 Equal(0.123456789m, savedInvoice.Lines[0].AreaM2, "unrounded area");
+Equal(0.123456789m, savedInvoice.Lines[0].Quantity, "unrounded invoice quantity");
 if (savedInvoice.Lines[0].BoardThicknessMm is not null) throw new Exception("Nullable thickness changed");
 if (loaded.WoodParts[0].PartId is null) throw new Exception("Production identifiers were not upgraded");
 var snapshot = JsonSerializer.Serialize(savedInvoice.ToCalculation());
@@ -103,6 +110,26 @@ foreach (var entry in entries)
     await entry.ReloadAsync();
     foreach (var property in entry.Properties)
         if (DecimalStorage.Scale(property.Metadata) is int scale)
-            Equal(scale == 1 ? 123.5m : 123.46m, (decimal)property.CurrentValue!, $"updated {entry.Metadata.Name}.{property.Metadata.Name}");
+            Equal(Math.Round(123.455m, scale, MidpointRounding.AwayFromZero), (decimal)property.CurrentValue!, $"updated {entry.Metadata.Name}.{property.Metadata.Name}");
+}
+
+// Every minute must survive a database round trip, including recurring decimals.
+for (var minute = 1; minute <= 60; minute++)
+    loaded.Lines.Add(new ProjectCostLine { Position = minute, Name = "Minute", Category = "labor",
+        Unit = "hod", Quantity = minute / 60m, UnitPrice = 60m, VatRate = 21 });
+db.Update(loaded);
+await db.SaveChangesAsync();
+db.ChangeTracker.Clear();
+var minuteRows = await db.Set<ProjectCostLine>().Where(l => l.Position > 0).OrderBy(l => l.Position).ToListAsync();
+for (var minute = 1; minute <= 60; minute++)
+    Equal(minute, Math.Round(minuteRows[minute - 1].Quantity * 60m), $"minute {minute} round trip");
+
+var input = (await db.Projects.Include(p => p.Details).Include(p => p.WoodParts).Include(p => p.Lines).SingleAsync()).ToInput();
+foreach (var minutes in new[] { new[] { 1, 1, 13 }, Enumerable.Repeat(1, 15).ToArray(), new[] { 5, 5, 5 }, new[] { 7, 8 }, new[] { 1, 15 } })
+{
+    var timedInput = input with { WoodParts = [], Lines = minutes.Select(m => new CostLine("Minute", "labor", "hod",
+        minuteRows[m - 1].Quantity, 60m, 21)).ToList() };
+    var calculation = Calculator.Calculate(timedInput);
+    Equal(Math.Ceiling(minutes.Sum() / 15m) / 4m, calculation.Lines.Sum(l => l.Quantity), "minute billing boundary");
 }
 Console.WriteLine("Decimal storage: SQLite writes, existing-data upgrade, idempotence, invoice isolation and MySQL schema passed.");

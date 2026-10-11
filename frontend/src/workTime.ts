@@ -21,8 +21,13 @@ export const roundedTimeQuantities = (lines: CostLine[]) => {
     groups.set(key, [...(groups.get(key) || []), index])
   })
   for (const indices of groups.values()) {
-    const total = indices.reduce((sum, index) => sum + lines[index].quantity, 0)
-    quantities[indices[indices.length - 1]] += Math.ceil(total * 4 - 1e-9) / 4 - total
+    const total = indices.reduce((sum, index) => {
+      const hours = lines[index].quantity
+      const minuteHours = Math.round(hours * 60) / 60
+      return sum + (Math.abs(hours - minuteHours) <= 0.0000005 ? minuteHours : hours)
+    }, 0)
+    const recordedTotal = indices.reduce((sum, index) => sum + lines[index].quantity, 0)
+    quantities[indices[indices.length - 1]] += Math.ceil(total * 4 - 1e-9) / 4 - recordedTotal
   }
   return quantities
 }

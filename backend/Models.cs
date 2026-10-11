@@ -122,8 +122,8 @@ public static class Calculator
             .GroupBy(entry => (WorkDate: entry.line.Category == "labor" ? entry.line.WorkDate : null, entry.line.Category, entry.line.Name, entry.line.UnitPrice, entry.line.VatRate, entry.line.AutomaticMachineryCharge));
         foreach (var group in timedGroups)
         {
-            var total = group.Sum(entry => entry.line.Quantity);
-            billableQuantities[group.Last().index] += Math.Ceiling(total * 4m) / 4m - total;
+            var total = Math.Round(group.Sum(entry => DecimalStorage.RestoreMinutePrecision(entry.line.Quantity)), 12);
+            billableQuantities[group.Last().index] += Math.Ceiling(total * 4m) / 4m - group.Sum(entry => entry.line.Quantity);
         }
         for (var index = 0; index < input.Lines.Count; index++)
         {
