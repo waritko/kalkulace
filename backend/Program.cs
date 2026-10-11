@@ -55,9 +55,11 @@ app.MapGet("/api/pricing-defaults", async (AppDb db) =>
 app.MapPut("/api/pricing-defaults", async (PricingDefaults defaults, AppDb db) =>
 {
     var values = new[] { defaults.WoodReservePercent, defaults.MaterialOverheadPercent, defaults.MaterialMarginPercent,
-        defaults.LaborMarginPercent, defaults.ServiceMarginPercent, defaults.FinanceMarginPercent, defaults.DiscountPercent };
+        defaults.LaborMarginPercent, defaults.ServiceMarginPercent, defaults.FinanceMarginPercent, defaults.DiscountPercent, defaults.GlueBoardWastePercent };
     if (defaults.Id != 1 || values.Any(value => value < 0 || value > 100))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["percent"] = ["Procenta musí být v rozsahu 0–100."] });
+    if (defaults.LamellaLengthExtraMm < 0 || defaults.LamellaMergeToleranceMm < 0)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["glueBoard"] = ["Přídavek i tolerance délky musí být nezáporné."] });
     var current = await db.PricingDefaults.SingleOrDefaultAsync(p => p.Id == 1);
     if (current is null) db.PricingDefaults.Add(defaults);
     else db.Entry(current).CurrentValues.SetValues(defaults);
@@ -168,6 +170,7 @@ app.MapPatch("/api/invoices/{id:int}/status", async (int id, InvoiceStatusReques
     await db.SaveChangesAsync();
     return Results.Ok(InvoiceResponse.From(invoice));
 });
+app.MapBoardStock();
 app.Run();
 
 static async Task<CatalogData> LoadCatalog(AppDb db)

@@ -56,7 +56,7 @@ $env:Database__Provider = 'Sqlite'
 $env:ConnectionStrings__Sqlite = "Data Source=$database"
 $process = $null
 try {
-    $process = Start-Process dotnet -ArgumentList "`"$backendDll`" --urls $baseUrl" -WorkingDirectory $backendDirectory -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+    $process = Start-Process dotnet -WindowStyle Hidden -ArgumentList "`"$backendDll`" --urls $baseUrl" -WorkingDirectory $backendDirectory -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
     $ready = $false
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
         if ($process.HasExited) { break }
@@ -69,6 +69,10 @@ try {
     if (-not $ready) { throw "API did not start at $baseUrl. See $stdout and $stderr." }
 
     $failed = 0
+    if (-not (Invoke-Smoke 'Board stock' {
+        & node (Join-Path $PSScriptRoot 'stock-smoke.cjs') $baseUrl
+        if ($LASTEXITCODE -ne 0) { throw "stock-smoke.cjs exited with code $LASTEXITCODE" }
+    })) { $failed++ }
     if (-not (Invoke-Smoke 'API calculation and invoice' { & (Join-Path $PSScriptRoot 'api-smoke.ps1') -BaseUrl $baseUrl })) { $failed++ }
     if (-not (Invoke-Smoke 'Daily entries' { & (Join-Path $PSScriptRoot 'daily-smoke.ps1') -BaseUrl $baseUrl })) { $failed++ }
     if (-not (Invoke-Smoke 'Finish calculation' {

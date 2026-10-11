@@ -1,6 +1,26 @@
 ﻿param([string]$BaseUrl = 'http://127.0.0.1:5080')
 $ErrorActionPreference = 'Stop'
 $base = "$BaseUrl/api"
+$originalDefaults = Invoke-RestMethod "$base/pricing-defaults"
+try {
+  $defaults = $originalDefaults.PSObject.Copy()
+  $defaults.lamellaLengthExtraMm = 125
+  $defaults.lamellaMergeToleranceMm = 200
+  $defaults.glueBoardWastePercent = 17
+  $null = Invoke-RestMethod "$base/pricing-defaults" -Method Put -ContentType 'application/json' -Body ($defaults | ConvertTo-Json)
+  $loadedDefaults = Invoke-RestMethod "$base/pricing-defaults"
+  if ($loadedDefaults.lamellaLengthExtraMm -ne 125 -or $loadedDefaults.lamellaMergeToleranceMm -ne 200 -or $loadedDefaults.glueBoardWastePercent -ne 17) { throw 'Default lamella settings did not persist' }
+  foreach ($invalid in @(@{ lamellaLengthExtraMm = -1 }, @{ lamellaMergeToleranceMm = -1 }, @{ glueBoardWastePercent = -1 }, @{ glueBoardWastePercent = 101 })) {
+    $invalidDefaults = $defaults.PSObject.Copy()
+    foreach ($key in $invalid.Keys) { $invalidDefaults.$key = $invalid[$key] }
+    $status = 0
+    try { $null = Invoke-RestMethod "$base/pricing-defaults" -Method Put -ContentType 'application/json' -Body ($invalidDefaults | ConvertTo-Json) }
+    catch { $status = [int]$_.Exception.Response.StatusCode }
+    if ($status -ne 400) { throw 'Invalid default lamella settings must be rejected' }
+  }
+} finally {
+  $null = Invoke-RestMethod "$base/pricing-defaults" -Method Put -ContentType 'application/json' -Body ($originalDefaults | ConvertTo-Json)
+}
 $project = @{
   name = 'Test knihovna'; customerName = 'Test zákazník'; budgetLimit = 1000; nonVatPayer = $false
   woodReservePercent = 0; materialOverheadPercent = 47; materialMarginPercent = 5

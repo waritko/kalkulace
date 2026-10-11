@@ -71,8 +71,21 @@ try {
     if (-not $SkipScp) {
         $scpArguments = @('-r', '-P', $ScpPort.ToString())
         if ($ScpIdentityFile) { $scpArguments += @('-i', $ScpIdentityFile) }
+        # Stage the upload separately so local packages retain their appsettings files.
+        New-Item -ItemType Directory -Path $staging | Out-Null
+        foreach ($entry in Get-ChildItem -LiteralPath $release -Recurse -Force) {
+            if (-not $entry.PSIsContainer -and $entry.Name -like 'appsettings*') { continue }
+            $relativePath = $entry.FullName.Substring($release.Length).TrimStart('\', '/')
+            $target = Join-Path $staging $relativePath
+            if ($entry.PSIsContainer) {
+                New-Item -ItemType Directory -Force -Path $target | Out-Null
+            } else {
+                New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+                Copy-Item -LiteralPath $entry.FullName -Destination $target
+            }
+        }
         # Copy directory contents, including hidden files, without nesting the release folder.
-        Push-Location $release
+        Push-Location $staging
         try {
             Write-Host "Copying unpacked release to $ScpDestination"
             & scp @scpArguments '.' $ScpDestination

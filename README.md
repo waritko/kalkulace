@@ -32,7 +32,7 @@ Z kořene projektu spusťte `./build.ps1` (Windows PowerShell 5.1 nebo PowerShel
 
 Skript provede `npm ci`, sestaví frontend, publikuje backend v konfiguraci **Release** a vytvoří `artifacts/kalkulace-release.zip` i rozbalenou složku `artifacts/kalkulace-release` se stejnými soubory. ZIP obsahuje frontend ve `wwwroot`, spouštěcí skripty a `appsettings.Production.json` s konfigurací MySQL. Lokální databáze a `appsettings.Development.json` se nebalí. Úspěšný build nahradí předchozí ZIP i rozbalenou složku.
 
-Po vytvoření balíčku skript přes SCP zkopíruje obsah rozbalené složky přímo do `waritko@mrazitko.varak.net:/home/waritko/kalkulace`. Vyžaduje klienta OpenSSH (`scp` v `PATH`) a SSH přístup s právem zápisu do cílového adresáře. Používá běžnou konfiguraci SSH; port, klíč a cíl lze změnit parametry. Při chybě přenosu skript skončí chybou, lokální ZIP i rozbalená složka zůstanou k dispozici. SCP přepíše stejnojmenné soubory, ale neodstraní staré soubory na serveru ani nerestartuje aplikaci.
+Po vytvoření balíčku skript přes SCP zkopíruje obsah rozbalené složky přímo do `waritko@mrazitko.varak.net:/home/waritko/kalkulace`. Soubory `appsettings*` se přes SCP nepřenášejí, ani z podsložek; v lokálním ZIPu a rozbaleném balíčku zůstávají. Vyžaduje klienta OpenSSH (`scp` v `PATH`) a SSH přístup s právem zápisu do cílového adresáře. Používá běžnou konfiguraci SSH; port, klíč a cíl lze změnit parametry. Při chybě přenosu skript skončí chybou, lokální ZIP i rozbalená složka zůstanou k dispozici. SCP přepíše stejnojmenné soubory, ale neodstraní staré soubory na serveru ani nerestartuje aplikaci.
 
 ```powershell
 # Pouze lokální build bez SCP
@@ -54,6 +54,12 @@ Aplikace běží na `http://localhost:5080`; ukončíte ji pomocí `Ctrl+C`. Adr
 SQLite používá soubor `backend/Data/kalkulace.db` a při prvním spuštění vytvoří schéma. Pro MySQL nastavte `Database__Provider=MySql` a `ConnectionStrings__MySql` na platný connection string, například přes proměnné prostředí nebo vlastní `appsettings.Production.json`. Databázi je nutné vytvořit předem. Schéma vytvoří aplikace při prvním spuštění. Změna provideru automaticky nepřenáší záznamy z původní databáze.
 
 Zakázky, položky, ceník a snímky faktur jsou uloženy v relačních tabulkách s cizími klíči. Při spuštění nad starší databází aplikace převede obsah sloupců `Projects.Payload`, `Invoices.Snapshot` a `CatalogSettings.Payload` do nových tabulek a staré sloupce odstraní. Před prvním spuštěním nové verze si vytvořte zálohu databáze.
+
+## Sklad fošen
+
+V nabídce **Sklad fošen** se každý kus přijímá samostatně zadáním dřeviny, šířky v celých milimetrech a délky 3, 4 nebo 5 m. Dřevinu lze vybrat z návrhů ceníku nebo zadat vlastní. Sklad se ukládá do databáze; při spuštění se doplní potřebná tabulka i do existující databáze.
+
+Tlačítko **Rozřezat** nejprve umožní zkrácení na délku. Zkrácené kusy lze dále krátit nebo rozřezat na šířku; po řezu na šířku lze pokračovat na šířku. Zadává se rozměr prvního kusu a prořez pily (výchozí 3 mm, lze zadat i 0). Před potvrzením se zobrazí oba výsledné rozměry. Původní kus se označí jako rozřezaný a oba nové kusy přibudou do skladu. Volba **Zobrazit i rozřezané** ukáže historii s čísly původních a vzniklých kusů. Sklad je samostatná evidence, jeho řezy neovlivňují cenové kalkulace zakázek.
 
 ## Výpočet
 
@@ -80,7 +86,7 @@ Při běžícím backendu lze spustit `./tests/api-smoke.ps1`. Test ověřuje vz
 
 Konfigurace v `.teamcity/settings.kts` vytváří build **Build and smoke tests** se spouštěním při změně ve VCS. V TeamCity vytvořte projekt z tohoto Git repozitáře a zapněte **Versioned Settings** ve formátu Kotlin DSL s cestou `.teamcity`. Build používá stejný VCS root jako nastavení projektu. Verzi DSL v `settings.kts` upravte podle verze vašeho TeamCity serveru.
 
-Agent musí běžet na Windows a mít v `PATH` PowerShell 5.1, .NET SDK 9 nebo novější (včetně .NET 10) a Node.js 20 nebo novější (včetně `npm.cmd`). Skript spustí `npm ci`, sestaví frontend a backend, spustí API na volném lokálním portu se samostatnou SQLite databází a provede všechny tři smoke testy. Výsledky jsou vidět jako testy v TeamCity; logy API se ukládají jako artefakty `api-logs`. Databáze a proces API se po běhu odstraní.
+Agent musí běžet na Windows a mít v `PATH` PowerShell 5.1, .NET SDK 9 nebo novější (včetně .NET 10) a Node.js 20 nebo novější (včetně `npm.cmd`). Skript spustí `npm ci`, sestaví frontend a backend, spustí API na volném lokálním portu se samostatnou SQLite databází a provede všechny čtyři smoke testy, včetně příjmu a rozřezání fošen. Výsledky jsou vidět jako testy v TeamCity; logy API se ukládají jako artefakty `api-logs`. Databáze a proces API se po běhu odstraní.
 
 Stejný postup lze spustit lokálně z kořene repozitáře:
 

@@ -8,9 +8,13 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<CatalogState> CatalogStates => Set<CatalogState>();
     public DbSet<PricingDefaults> PricingDefaults => Set<PricingDefaults>();
+    public DbSet<StockBoard> StockBoards => Set<StockBoard>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<StockBoard>().Property(b => b.WoodType).HasMaxLength(100);
+        modelBuilder.Entity<StockBoard>().Property(b => b.Stage).HasMaxLength(10);
+        modelBuilder.Entity<StockBoard>().Property(b => b.IsCut).IsConcurrencyToken();
         modelBuilder.Entity<ProjectDetails>().HasKey(d => d.ProjectId);
         modelBuilder.Entity<Project>().HasOne(p => p.Details).WithOne().HasForeignKey<ProjectDetails>(d => d.ProjectId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Project>().HasMany(p => p.WoodParts).WithOne().HasForeignKey(p => p.ProjectId).OnDelete(DeleteBehavior.Cascade);
@@ -106,6 +110,9 @@ public class CatalogState
 public class PricingDefaults
 {
     public int Id { get; set; } = 1;
+    public decimal LamellaLengthExtraMm { get; set; } = 50m;
+    public decimal LamellaMergeToleranceMm { get; set; } = 50m;
+    public decimal GlueBoardWastePercent { get; set; } = 10m;
     public decimal WoodReservePercent { get; set; }
     public decimal MaterialOverheadPercent { get; set; }
     public decimal MaterialMarginPercent { get; set; } = 5;

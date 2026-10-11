@@ -16,6 +16,12 @@ public static class DatabaseUpgrade
     public static async Task InitializeAsync(AppDb db)
     {
         await db.Database.EnsureCreatedAsync();
+        if (!await HasTable(db, "StockBoards"))
+        {
+            var create = db.Database.GenerateCreateScript().Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Single(statement => Regex.IsMatch(statement, @"^CREATE TABLE\s+[`""\[]?StockBoards\b", RegexOptions.IgnoreCase));
+            await db.Database.ExecuteSqlRawAsync(create);
+        }
         // EnsureCreated does not add tables to an existing database.
         if (!await HasTable(db, "PricingDefaults"))
         {
@@ -108,6 +114,15 @@ public static class DatabaseUpgrade
 
     private static async Task AddGlueBoardColumns(AppDb db)
     {
+        if (await HasTable(db, "PricingDefaults"))
+        {
+            if (!await HasColumn(db, "PricingDefaults", "LamellaLengthExtraMm"))
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults ADD COLUMN LamellaLengthExtraMm decimal(18,2) NOT NULL DEFAULT 50");
+            if (!await HasColumn(db, "PricingDefaults", "LamellaMergeToleranceMm"))
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults ADD COLUMN LamellaMergeToleranceMm decimal(18,2) NOT NULL DEFAULT 50");
+            if (!await HasColumn(db, "PricingDefaults", "GlueBoardWastePercent"))
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults ADD COLUMN GlueBoardWastePercent decimal(18,2) NOT NULL DEFAULT 10");
+        }
         if (!await HasTable(db, "ProjectDetails")) return;
         if (!await HasColumn(db, "ProjectDetails", "LamellaLengthExtraMm"))
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN LamellaLengthExtraMm decimal(18,2) NOT NULL DEFAULT 50");
