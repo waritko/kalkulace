@@ -13,7 +13,7 @@ public static class EntityMapping
             project.Lines.OrderBy(l => l.Position).Select(l => new CostLine(l.Name, l.Category, l.Unit, l.Quantity,
                 l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType, l.AutomaticFinish, l.WorkDate)).ToList(),
             d.LamellaLengthExtraMm, d.LamellaMergeToleranceMm, d.GlueBoardWastePercent,
-            d.LamellaMinLengthMm, d.LamellaMinWidthMm, d.LamellaMaxWidthMm);
+            d.LamellaMinLengthMm, d.LamellaMinWidthMm, d.LamellaMaxWidthMm, d.LamellaWidthLossMm);
     }
 
     public static void SetInput(this Project project, ProjectInput input)
@@ -30,6 +30,7 @@ public static class EntityMapping
         project.Details.LamellaMinLengthMm = input.LamellaMinLengthMm;
         project.Details.LamellaMinWidthMm = input.LamellaMinWidthMm;
         project.Details.LamellaMaxWidthMm = input.LamellaMaxWidthMm;
+        project.Details.LamellaWidthLossMm = input.LamellaWidthLossMm;
         project.Details.MaterialOverheadPercent = input.MaterialOverheadPercent;
         project.Details.MaterialMarginPercent = input.MaterialMarginPercent;
         project.Details.LaborMarginPercent = input.LaborMarginPercent;

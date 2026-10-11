@@ -1,15 +1,15 @@
 namespace Kalkulace.Api;
 
-public record PlannedLamella(int BoardId, string WoodType, int BoardThicknessMm, int LengthMm, int WidthMm, int OffsetWidthMm, int OffsetLengthMm);
+public record PlannedLamella(int BoardId, string WoodType, int BoardThicknessMm, int LengthMm, int WidthMm, int OffsetWidthMm, int OffsetLengthMm, int FinishedWidthMm);
 public record CuttingShortage(string WoodType, decimal BoardThicknessMm, decimal LengthMm, decimal MissingWidthMm);
 public record CuttingPlan(bool Complete, int KerfMm, List<PlannedLamella> Lamellas, List<CuttingShortage> Shortages, List<string> Warnings);
 
 public static class CuttingPlanner
 {
-    public const string SettingsError = "Nejmenší délka a šířky lamely musí být kladné celé milimetry; největší šířka nesmí být menší než nejmenší.";
+    public const string SettingsError = "Nejmenší délka a šířky lamely musí být kladné celé milimetry; největší šířka nesmí být menší než nejmenší. Úběr šířky při srovnávání musí být nezáporný a menší než nejmenší šířka lamely.";
     private const int Kerf = 3;
     private const int MaxLamellas = 20_000;
-    public static bool ValidSettings(int length, int minWidth, int maxWidth) => length > 0 && minWidth > 0 && maxWidth >= minWidth;
+    public static bool ValidSettings(int length, int minWidth, int maxWidth, int widthLoss) => length > 0 && minWidth > 0 && maxWidth >= minWidth && widthLoss >= 0 && widthLoss < minWidth;
 
     // A free rectangle retains its source coordinates. Cut across the grain first,
     // then rip the resulting section; never reuse material allocated to a lamella.
@@ -46,9 +46,9 @@ public static class CuttingPlanner
                 var slots = (int)Math.Ceiling(((decimal)piece.Width + Kerf) / ((decimal)input.LamellaMaxWidthMm + Kerf));
                 var balancedWidth = (int)(((long)piece.Width - (long)(slots - 1) * Kerf) / slots);
                 var width = Math.Min(input.LamellaMaxWidthMm, balancedWidth >= input.LamellaMinWidthMm ? balancedWidth : piece.Width);
-                width = (int)Math.Min(width, Math.Max(input.LamellaMinWidthMm, Math.Ceiling(remaining)));
-                lamellas.Add(new(piece.Board.Id, piece.Board.WoodType, piece.Board.ThicknessMm!.Value, length, width, piece.X, piece.Y));
-                remaining -= width;
+                width = (int)Math.Min(width, Math.Max(input.LamellaMinWidthMm, Math.Ceiling(remaining) + input.LamellaWidthLossMm));
+                lamellas.Add(new(piece.Board.Id, piece.Board.WoodType, piece.Board.ThicknessMm!.Value, length, width, piece.X, piece.Y, width - input.LamellaWidthLossMm));
+                remaining -= width - input.LamellaWidthLossMm;
                 var restLength = piece.Length - length - Kerf;
                 if (restLength > 0)
                     pieces.Add(new(piece.Board, piece.Width, restLength, piece.X, piece.Y + length + Kerf));

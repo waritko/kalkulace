@@ -54,6 +54,7 @@ public class ProjectDetails
     public int LamellaMinLengthMm { get; set; } = 350;
     public int LamellaMinWidthMm { get; set; } = 50;
     public int LamellaMaxWidthMm { get; set; } = 110;
+    public int LamellaWidthLossMm { get; set; } = 4;
     public int ProjectId { get; set; }
     public decimal BudgetLimit { get; set; }
     public bool NonVatPayer { get; set; }
@@ -115,6 +116,7 @@ public class PricingDefaults
     public int LamellaMinLengthMm { get; set; } = 350;
     public int LamellaMinWidthMm { get; set; } = 50;
     public int LamellaMaxWidthMm { get; set; } = 110;
+    public int LamellaWidthLossMm { get; set; } = 4;
     public int Id { get; set; } = 1;
     public decimal LamellaLengthExtraMm { get; set; } = 50m;
     public decimal LamellaMergeToleranceMm { get; set; } = 50m;

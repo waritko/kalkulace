@@ -32,15 +32,16 @@ export function CuttingPlan({ input, update }: {
         ['lamellaMinLengthMm', 'Nejmenší délka lamely (mm)'],
         ['lamellaMinWidthMm', 'Nejmenší šířka lamely (mm)'],
         ['lamellaMaxWidthMm', 'Největší šířka lamely (mm)'],
-      ] as const).map(([key, label]) => <label className="field" key={key}><span>{label}</span><input type="number" min="1" step="1" value={input[key]} onChange={e => update(key, Number(e.target.value))}/></label>)}
+        ['lamellaWidthLossMm', 'Úběr šířky při srovnávání (mm)'],
+      ] as const).map(([key, label]) => <label className="field" key={key}><span>{label}</span><input type="number" min={key === 'lamellaWidthLossMm' ? 0 : 1} step="1" value={input[key]} onChange={e => update(key, Number(e.target.value))}/></label>)}
     </div>
-    <div className="info-strip">Plán vychází z nákupního seznamu lamel včetně přídavku a procentní rezervy. Prořez pily je 3 mm na řez. Vytvoření plánu sklad nemění ani nerezervuje materiál. Před řezáním jej obnovte podle aktuálního skladu.</div>
+    <div className="info-strip">Plán vychází z nákupního seznamu lamel včetně přídavku a procentní rezervy. Prořez pily je 3 mm na řez. Meze šířky platí před srovnáním; úběr se odečítá jednou z každé lamely a požadavek pokrývá až šířka po srovnání. Vytvoření plánu sklad nemění ani nerezervuje materiál. Před řezáním jej obnovte podle aktuálního skladu.</div>
     {error && <div className="alert error" role="alert">{error}</div>}
     {plan && <>
       <div className={`alert ${plan.complete ? 'success' : 'error'}`} role="status">{plan.complete ? `Nářezový plán je kompletní: ${num(plan.lamellas.length)} lamel z ${new Set(plan.lamellas.map(l => l.boardId)).size} skladových kusů.` : 'Ze současného skladu se nepodařilo sestavit úplný nářezový plán. Níže je částečný plán a chybějící materiál.'}</div>
       {plan.warnings.map(warning => <p key={warning} className="info-strip">{warning}</p>)}
       {!!plan.shortages.length && <div className="table-scroll"><table><thead><tr><th>Chybějící dřevina</th><th>Tloušťka fošny</th><th>Délka lamely</th><th>Chybějící součet šířek</th></tr></thead><tbody>{plan.shortages.map((s, i) => <tr key={i}><td>{s.woodType}</td><td>{num(s.boardThicknessMm)} mm</td><td>{num(s.lengthMm)} mm</td><td>{num(s.missingWidthMm)} mm</td></tr>)}</tbody></table></div>}
-      {!!plan.lamellas.length && <><p>Každý řádek představuje jednu lamelu. Poloha je vzdálenost od začátku skladového kusu. Nejprve řežte na délku, potom na šířku; již podélně nařezané kusy zachovávají svou délku.</p><div className="table-scroll"><table><thead><tr><th>Fošna / kus</th><th>Dřevina</th><th>Tloušťka</th><th>Délka lamely</th><th>Šířka lamely</th><th>Poloha na délku</th><th>Poloha na šířku</th></tr></thead><tbody>{plan.lamellas.map((l, i) => <tr key={i}><td><strong>#{l.boardId}</strong></td><td>{l.woodType}</td><td>{num(l.boardThicknessMm)} mm</td><td>{num(l.lengthMm)} mm</td><td>{num(l.widthMm)} mm</td><td>{num(l.offsetLengthMm)} mm</td><td>{num(l.offsetWidthMm)} mm</td></tr>)}</tbody></table></div></>}
+      {!!plan.lamellas.length && <><p>Každý řádek představuje jednu lamelu. Poloha je vzdálenost od začátku skladového kusu. Nejprve řežte na délku, potom na šířku; již podélně nařezané kusy zachovávají svou délku.</p><div className="table-scroll"><table><thead><tr><th>Fošna / kus</th><th>Dřevina</th><th>Tloušťka</th><th>Délka lamely</th><th>Šířka pro řezání</th><th>Šířka po srovnání</th><th>Poloha na délku</th><th>Poloha na šířku</th></tr></thead><tbody>{plan.lamellas.map((l, i) => <tr key={i}><td><strong>#{l.boardId}</strong></td><td>{l.woodType}</td><td>{num(l.boardThicknessMm)} mm</td><td>{num(l.lengthMm)} mm</td><td>{num(l.widthMm)} mm</td><td>{num(l.finishedWidthMm)} mm</td><td>{num(l.offsetLengthMm)} mm</td><td>{num(l.offsetWidthMm)} mm</td></tr>)}</tbody></table></div></>}
     </>}
   </section>
 }
