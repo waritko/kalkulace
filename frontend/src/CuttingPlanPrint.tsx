@@ -59,5 +59,10 @@ export function CuttingPlanPrint({ input, plan }: { input: ProjectInput; plan: C
       </div>))}
       {!boards.length && <p>Ze skladu nebyla naplánována žádná lamela.</p>}
     </section>
+    <section>
+      <h2>3. Odpadní kusy a zbytky</h2>
+      <p>Kusy zbývající z použitých fošen po všech plánovaných řezech, včetně zbytků pro další použití. Rozměry nezahrnují prořez pily ani úběr při srovnávání. Polohy jsou od začátku původního skladového kusu.</p>
+      {plan.offcuts.length ? <table><thead><tr><th>Fošna / kus</th><th>Dřevina</th><th>Tloušťka</th><th>Délka</th><th>Šířka</th><th>Poloha na délku</th><th>Poloha na šířku</th></tr></thead><tbody>{plan.offcuts.map((offcut, i) => <tr key={i}><td>#{offcut.boardId}</td><td>{offcut.woodType}</td><td>{num(offcut.boardThicknessMm)}</td><td>{num(offcut.lengthMm)}</td><td>{num(offcut.widthMm)}</td><td>{num(offcut.offsetLengthMm)}</td><td>{num(offcut.offsetWidthMm)}</td></tr>)}</tbody></table> : <p>Po plánovaných řezech nezbývají žádné odpadní kusy ani zbytky.</p>}
+    </section>
   </article>
 }

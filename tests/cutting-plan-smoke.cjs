@@ -38,6 +38,16 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   assert.ok(plan.lamellas.reduce((sum, l) => sum + l.finishedWidthMm, 0) >= 200)
   assert.deepEqual(await api('/stock/boards'), before, 'Planning must not mutate or reserve stock')
   assert.ok(plan.lamellas.every(l => l.finishedWidthMm === l.widthMm - 4))
+  assert.ok(plan.offcuts.length > 0)
+  assert.ok(plan.offcuts.every(p => p.boardId === unknown.id))
+  const rectangles = [...plan.lamellas, ...plan.offcuts]
+  for (const p of plan.offcuts) {
+    assert.ok(p.lengthMm > 0 && p.widthMm > 0)
+    assert.ok(p.offsetWidthMm + p.widthMm <= unknown.widthMm)
+    assert.ok(p.offsetLengthMm + p.lengthMm <= unknown.lengthMm)
+    for (const other of rectangles) if (p !== other)
+      assert.ok(p.offsetWidthMm + p.widthMm + 3 <= other.offsetWidthMm || other.offsetWidthMm + other.widthMm + 3 <= p.offsetWidthMm || p.offsetLengthMm + p.lengthMm + 3 <= other.offsetLengthMm || other.offsetLengthMm + other.lengthMm + 3 <= p.offsetLengthMm, 'Offcuts must not overlap lamellas or other offcuts, including kerf')
+  }
   // Check geometry including kerf, not just the reported totals.
   for (const l of plan.lamellas) {
     assert.ok(l.offsetWidthMm + l.widthMm <= unknown.widthMm)
@@ -50,6 +60,25 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   const impossible = await api('/cutting-plan', project(wood, { woodParts: [{ ...input.woodParts[0], lengthMm: 4000 }] }))
   assert.equal(impossible.complete, false)
   assert.equal(impossible.lamellas.length, 0)
+  assert.deepEqual(impossible.offcuts, [])
+  // Report both the length remainder and narrow width scrap, excluding sawdust.
+  const scrapWood = wood + '-offcuts'
+  const scrapBoard = await api('/stock/boards', { woodType: scrapWood, widthMm: 80, lengthMm: 1000, thicknessMm: 32 }, 201)
+  const scrapInput = project(scrapWood, { lamellaLengthExtraMm: 0, woodParts: [{ ...input.woodParts[0], woodType: scrapWood, widthMm: 50 }] })
+  const scrap = await api('/cutting-plan', scrapInput)
+  assert.equal(scrap.complete, true)
+  assert.deepEqual(scrap.offcuts, [
+    { boardId: scrapBoard.id, woodType: scrapWood, boardThicknessMm: 32, lengthMm: 500, widthMm: 23, offsetWidthMm: 57, offsetLengthMm: 0 },
+    { boardId: scrapBoard.id, woodType: scrapWood, boardThicknessMm: 32, lengthMm: 497, widthMm: 80, offsetWidthMm: 0, offsetLengthMm: 503 },
+  ])
+  // Exact fits leave no offcuts, including already ripped stock.
+  const exactWood = wood + '-exact'
+  const exactBoard = await api('/stock/boards', { woodType: exactWood, widthMm: 103, lengthMm: 1003, thicknessMm: 32 }, 201)
+  const exactSections = await api(`/stock/boards/${exactBoard.id}/cut`, { axis: 'length', sizeMm: 500 })
+  await api(`/stock/boards/${exactSections[0].id}/cut`, { axis: 'width', sizeMm: 50 })
+  const exact = await api('/cutting-plan', project(exactWood, { lamellaLengthExtraMm: 0, woodParts: [{ ...input.woodParts[0], woodType: exactWood, widthMm: 46 }] }))
+  assert.equal(exact.complete, true)
+  assert.deepEqual(exact.offcuts, [])
   // Parent is no longer available after cutting; descendants carry the thickness.
   const children = await api(`/stock/boards/${unknown.id}/cut`, { axis: 'length', sizeMm: 600 })
   assert.ok(children.every(b => b.thicknessMm === 32))

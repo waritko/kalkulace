@@ -2,7 +2,8 @@ namespace Kalkulace.Api;
 
 public record PlannedLamella(int BoardId, string WoodType, int BoardThicknessMm, int LengthMm, int WidthMm, int OffsetWidthMm, int OffsetLengthMm, int FinishedWidthMm, int PanelId);
 public record CuttingShortage(string WoodType, decimal BoardThicknessMm, decimal LengthMm, decimal MissingWidthMm);
-public record CuttingPlan(bool Complete, int KerfMm, List<PlannedLamella> Lamellas, List<CuttingShortage> Shortages, List<string> Warnings, List<PlannedPanel> Panels);
+public record PlannedOffcut(int BoardId, string WoodType, int BoardThicknessMm, int LengthMm, int WidthMm, int OffsetWidthMm, int OffsetLengthMm);
+public record CuttingPlan(bool Complete, int KerfMm, List<PlannedLamella> Lamellas, List<CuttingShortage> Shortages, List<string> Warnings, List<PlannedPanel> Panels, List<PlannedOffcut> Offcuts);
 public record PanelPart(int PartIndex, string Name, decimal LengthMm, decimal WidthMm, decimal OffsetLengthMm, decimal OffsetWidthMm);
 public record PlannedPanel(int Id, string WoodType, decimal BoardThicknessMm, decimal LengthMm, decimal WidthMm, List<PanelPart> Parts);
 
@@ -68,11 +69,12 @@ public static class CuttingPlanner
     {
         var panels = BuildPanels(input);
         if (panels is null)
-            return new(false, Kerf, [], [], ["Plán podporuje nejvýše 20 000 dílců. Rozdělte zakázku na menší části."], []);
+            return new(false, Kerf, [], [], ["Plán podporuje nejvýše 20 000 dílců. Rozdělte zakázku na menší části."], [], []);
         var requirements = panels.OrderByDescending(p => p.LengthMm).ThenBy(p => p.WoodType).ThenBy(p => p.BoardThicknessMm);
         var pieces = stock.Where(b => !b.IsCut && b.ThicknessMm > 0)
             .Select(b => new FreePiece(b, b.WidthMm, b.LengthMm, CanShorten: b.Stage != "width")).ToList();
         var lamellas = new List<PlannedLamella>();
+        var discarded = new List<FreePiece>();
         var shortages = new List<CuttingShortage>();
         var warnings = new List<string>();
         if (panels.Any(p => p.WidthMm > input.GlueBoardMaxWidthMm)) warnings.Add("Samostatný dílec je širší než nastavená šířka spárovky; plán jej ponechává samostatně v požadované šířce.");
@@ -105,10 +107,16 @@ public static class CuttingPlanner
                 var restWidth = piece.Width - width - Kerf;
                 if (restWidth >= input.LamellaMinWidthMm)
                     pieces.Add(new(piece.Board, restWidth, length, piece.X + width + Kerf, piece.Y, CanShorten: false));
+                else if (restWidth > 0)
+                    discarded.Add(new(piece.Board, restWidth, length, piece.X + width + Kerf, piece.Y, CanShorten: false));
             }
             if (remaining > 0) shortages.Add(new(requirement.WoodType, requirement.BoardThicknessMm, requirement.LengthMm, remaining));
         }
         if (lamellas.Count == MaxLamellas) warnings.Add("Plán dosáhl limitu 20 000 lamel. Rozdělte zakázku na menší části.");
-        return new(shortages.Count == 0, Kerf, lamellas, shortages, warnings, panels);
+        var usedBoards = lamellas.Select(l => l.BoardId).ToHashSet();
+        var offcuts = pieces.Concat(discarded).Where(p => usedBoards.Contains(p.Board.Id))
+            .OrderBy(p => p.Board.Id).ThenBy(p => p.Y).ThenBy(p => p.X)
+            .Select(p => new PlannedOffcut(p.Board.Id, p.Board.WoodType, p.Board.ThicknessMm!.Value, p.Length, p.Width, p.X, p.Y)).ToList();
+        return new(shortages.Count == 0, Kerf, lamellas, shortages, warnings, panels, offcuts);
     }
 }
