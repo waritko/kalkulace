@@ -32,6 +32,7 @@ public static class DatabaseUpgrade
         await AddMaterialTypeColumns(db);
         await AddFinishColumns(db);
         await AddGlueBoardColumns(db);
+        await AddCuttingPlanColumns(db);
         await AddWorkDateColumns(db);
         var projectPayload = await HasColumn(db, "Projects", "Payload");
         var invoiceSnapshot = await HasColumn(db, "Invoices", "Snapshot");
@@ -52,6 +53,7 @@ public static class DatabaseUpgrade
         await AddMaterialTypeColumns(db);
         await AddFinishColumns(db);
         await AddGlueBoardColumns(db);
+        await AddCuttingPlanColumns(db);
         await AddWorkDateColumns(db);
 
         var projects = projectPayload ? await ReadLegacy(db, "SELECT Id, Payload FROM Projects") : [];
@@ -130,6 +132,23 @@ public static class DatabaseUpgrade
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN LamellaMergeToleranceMm decimal(18,2) NOT NULL DEFAULT 50");
         if (!await HasColumn(db, "ProjectDetails", "GlueBoardWastePercent"))
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails ADD COLUMN GlueBoardWastePercent decimal(18,2) NOT NULL DEFAULT 10");
+    }
+
+    private static async Task AddCuttingPlanColumns(AppDb db)
+    {
+        foreach (var table in new[] { "ProjectDetails", "PricingDefaults" })
+        {
+            if (!await HasTable(db, table)) continue;
+            foreach (var (column, value) in new[] { ("LamellaMinLengthMm", 350), ("LamellaMinWidthMm", 50), ("LamellaMaxWidthMm", 110) })
+                if (!await HasColumn(db, table, column))
+                {
+                    // Identifiers and defaults come exclusively from the constants above.
+                    var sql = $"ALTER TABLE {table} ADD COLUMN {column} INTEGER NOT NULL DEFAULT {value}";
+                    await db.Database.ExecuteSqlRawAsync(sql);
+                }
+        }
+        if (!await HasColumn(db, "StockBoards", "ThicknessMm"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE StockBoards ADD COLUMN ThicknessMm INTEGER NULL");
     }
 
     private static async Task AddWorkDateColumns(AppDb db)

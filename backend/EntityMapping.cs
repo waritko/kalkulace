@@ -12,7 +12,8 @@ public static class EntityMapping
                 p.LengthMm, p.ThicknessMm, p.Quantity, p.PricePerM3, p.Finish, p.ApplyFinish)).ToList(),
             project.Lines.OrderBy(l => l.Position).Select(l => new CostLine(l.Name, l.Category, l.Unit, l.Quantity,
                 l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType, l.AutomaticFinish, l.WorkDate)).ToList(),
-            d.LamellaLengthExtraMm, d.LamellaMergeToleranceMm, d.GlueBoardWastePercent);
+            d.LamellaLengthExtraMm, d.LamellaMergeToleranceMm, d.GlueBoardWastePercent,
+            d.LamellaMinLengthMm, d.LamellaMinWidthMm, d.LamellaMaxWidthMm);
     }
 
     public static void SetInput(this Project project, ProjectInput input)
@@ -26,6 +27,9 @@ public static class EntityMapping
         project.Details.LamellaLengthExtraMm = input.LamellaLengthExtraMm;
         project.Details.LamellaMergeToleranceMm = input.LamellaMergeToleranceMm;
         project.Details.GlueBoardWastePercent = input.GlueBoardWastePercent;
+        project.Details.LamellaMinLengthMm = input.LamellaMinLengthMm;
+        project.Details.LamellaMinWidthMm = input.LamellaMinWidthMm;
+        project.Details.LamellaMaxWidthMm = input.LamellaMaxWidthMm;
         project.Details.MaterialOverheadPercent = input.MaterialOverheadPercent;
         project.Details.MaterialMarginPercent = input.MaterialMarginPercent;
         project.Details.LaborMarginPercent = input.LaborMarginPercent;

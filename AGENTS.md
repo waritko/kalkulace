@@ -19,8 +19,9 @@ Kalkulace je česká webová aplikace pro truhlářské zakázky vycházející 
 - `backend/AppDb.cs`, `backend/EntityMapping.cs`: relační entity, databázový kontext a převody mezi entitami a API.
 - `backend/DatabaseUpgrade.cs`: inicializace a aktualizace schématu včetně převodu starších dat.
 - `backend/BoardStock.cs`: sklad fošen a pravidla rozřezávání.
+- `backend/CuttingPlanner.cs`: nářezový plán lamel z dostupných fošen podle dřeviny a evidované tloušťky; řeže nejprve na délku, potom na šířku, počítá prořez 3 mm a hlásí nepokryté požadavky. Plán pouze čte sklad (`POST /api/cutting-plan`), nemění cenovou kalkulaci ani nerezervuje materiál. Parametry nejmenší délky (350 mm) a nejmenší/největší šířky (50/110 mm) jsou součástí zakázky a výchozích nastavení. Sklad má volitelnou tloušťku přenášenou na potomky; kusy bez tloušťky plán nepoužije. Aktualizace schématu zachová neznámou tloušťku jako NULL.
 - `frontend/src/App.tsx`: hlavní uživatelské rozhraní; další komponenty řeší ceník, denní záznamy, nákup dřeva a sklad fošen. `types.ts` obsahuje frontendové kontrakty, `workTime.ts` práci s časem.
-- `tests/`: smoke testy API, denních záznamů, povrchové úpravy a skladu; `ci.ps1` sestaví aplikaci a spustí testy s dočasnou SQLite databází.
+- `tests/`: smoke testy API, denních záznamů, povrchové úpravy, skladu a nářezového plánu (`cutting-plan-smoke.cjs`, geometrie, prořez, nedostatek materiálu, tloušťka a ukládání parametrů); `ci.ps1` sestaví aplikaci a spustí testy s dočasnou SQLite databází.
 - `.teamcity/settings.kts`: konfigurace CI v Kotlin DSL pro Windows agenta.
 - `run-local.ps1`: sestavení frontendu a lokální spuštění aplikace.
 - `build.ps1`: release ZIP a rozbalený balíček v `artifacts/`, standardně také přenos přes SCP. Pro pouze lokální sestavení použij `-SkipScp`.

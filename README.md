@@ -57,9 +57,19 @@ Zakázky, položky, ceník a snímky faktur jsou uloženy v relačních tabulká
 
 ## Sklad fošen
 
-V nabídce **Sklad fošen** se každý kus přijímá samostatně zadáním dřeviny, šířky v celých milimetrech a délky 3, 4 nebo 5 m. Dřevinu lze vybrat z návrhů ceníku nebo zadat vlastní. Sklad se ukládá do databáze; při spuštění se doplní potřebná tabulka i do existující databáze.
+V nabídce **Sklad fošen** se každý kus přijímá samostatně zadáním dřeviny, šířky a tloušťky v celých milimetrech a délky 3, 4 nebo 5 m. Dřevinu lze vybrat z návrhů ceníku nebo zadat vlastní. Tloušťku dostupného kusu lze upravit přímo v tabulce; hodnota se uloží po opuštění pole. U starších kusů je tloušťka neznámá a je nutné ji doplnit před použitím v nářezovém plánu. Rozřezané kusy předávají tloušťku svým potomkům. Sklad se ukládá do databáze; při spuštění se doplní potřebná tabulka a sloupce i do existující databáze.
 
 Tlačítko **Rozřezat** nejprve umožní zkrácení na délku. Zkrácené kusy lze dále krátit nebo rozřezat na šířku; po řezu na šířku lze pokračovat na šířku. Zadává se rozměr prvního kusu a prořez pily (výchozí 3 mm, lze zadat i 0). Před potvrzením se zobrazí oba výsledné rozměry. Původní kus se označí jako rozřezaný a oba nové kusy přibudou do skladu. Volba **Zobrazit i rozřezané** ukáže historii s čísly původních a vzniklých kusů. Sklad je samostatná evidence, jeho řezy neovlivňují cenové kalkulace zakázek.
+
+## Nářezový plán
+
+V záložce **Výpočet dřeva** zvolte **Vytvořit nářezový plán**. Nejmenší délka lamely je výchozí 350 mm, nejmenší šířka 50 mm a největší šířka 110 mm. Hodnoty lze změnit u zakázky a uložit tlačítkem **Uložit**. Ve výchozím nastavení se používají pro nové zakázky; změna výchozích hodnot nepřepisuje uložené zakázky. Starší zakázky dostanou hodnoty 350/50/110 mm.
+
+Plán vychází z nákupního seznamu lamel pro spárovku včetně přídavku k délce, sloučení délek a procentního prořezu. Délky zvedne alespoň na nastavené minimum a zaokrouhlí nahoru na celé milimetry. Použije jen dostupné kusy odpovídající dřeviny a nákupní tloušťky (32 nebo 50 mm); fošny bez zadané tloušťky vynechá s upozorněním. Pro každý kus uvádí jednotlivé lamely, jejich délku, šířku a polohu od začátku kusu. Navrhuje nejprve zkrácení na délku, potom podélné řezy; využívá i zbytky. Již podélně rozřezané skladové kusy zachovávají svou délku. Fyzický prořez pily je 3 mm na řez, navíc k procentní rezervě nákupního seznamu.
+
+Pokud se celý požadavek nepodaří pokrýt, zobrazí částečný plán a chybějící součet šířek podle dřeviny, tloušťky a délky. Plánování postupuje od nejdelších lamel a přednostně vybírá nejkratší vhodné kusy; nevyhledává všechny možné kombinace a nezaručuje nejmenší odpad. Při neúplném plánu lze doplnit sklad nebo upravit parametry. Limit je 20 000 lamel na jeden plán.
+
+Vytvoření plánu sklad nemění a materiál nerezervuje. Před řezáním plán znovu vytvořte podle aktuálního skladu a zkontrolujte stav dřeva. Změna zadání ruší zobrazený plán; parametry zůstávají uloženy se zakázkou, samotný seznam se vždy vytváří z aktuálního skladu. Nářezové parametry nemění cenu kalkulace.
 
 ## Výpočet
 
@@ -86,7 +96,7 @@ Při běžícím backendu lze spustit `./tests/api-smoke.ps1`. Test ověřuje vz
 
 Konfigurace v `.teamcity/settings.kts` vytváří build **Build and smoke tests** se spouštěním při změně ve VCS. V TeamCity vytvořte projekt z tohoto Git repozitáře a zapněte **Versioned Settings** ve formátu Kotlin DSL s cestou `.teamcity`. Build používá stejný VCS root jako nastavení projektu. Verzi DSL v `settings.kts` upravte podle verze vašeho TeamCity serveru.
 
-Agent musí běžet na Windows a mít v `PATH` PowerShell 5.1, .NET SDK 9 nebo novější (včetně .NET 10) a Node.js 20 nebo novější (včetně `npm.cmd`). Skript spustí `npm ci`, sestaví frontend a backend, spustí API na volném lokálním portu se samostatnou SQLite databází a provede všechny čtyři smoke testy, včetně příjmu a rozřezání fošen. Výsledky jsou vidět jako testy v TeamCity; logy API se ukládají jako artefakty `api-logs`. Databáze a proces API se po běhu odstraní.
+Agent musí běžet na Windows a mít v `PATH` PowerShell 5.1, .NET SDK 9 nebo novější (včetně .NET 10) a Node.js 20 nebo novější (včetně `npm.cmd`). Skript spustí `npm ci`, sestaví frontend a backend, spustí API na volném lokálním portu se samostatnou SQLite databází a provede všech pět smoke testů, včetně příjmu a rozřezání fošen a nářezového plánu. Výsledky jsou vidět jako testy v TeamCity; logy API se ukládají jako artefakty `api-logs`. Databáze a proces API se po běhu odstraní.
 
 Stejný postup lze spustit lokálně z kořene repozitáře:
 

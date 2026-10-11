@@ -3,7 +3,7 @@ import { Plus, RefreshCw, Scissors, X } from 'lucide-react'
 import type { Catalog } from './types'
 
 type Board = {
-  id: number; woodType: string; widthMm: number; lengthMm: number; parentId: number | null
+  id: number; woodType: string; widthMm: number; lengthMm: number; thicknessMm: number | null; parentId: number | null
   stage: 'original' | 'length' | 'width'; isCut: boolean
   cutAxis: 'length' | 'width' | null; cutSizeMm: number | null; kerfMm: number | null
 }
@@ -26,6 +26,7 @@ export function BoardStock({ catalog, onDirty }: { catalog: Catalog; onDirty: (d
   const [woodType, setWoodType] = useState('')
   const [width, setWidth] = useState('')
   const [length, setLength] = useState(3000)
+  const [thickness, setThickness] = useState(32)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -38,7 +39,7 @@ export function BoardStock({ catalog, onDirty }: { catalog: Catalog; onDirty: (d
   const [kerf, setKerf] = useState('3')
   const [cutError, setCutError] = useState('')
 
-  useEffect(() => { onDirty(!!woodType || !!width || length !== 3000 || !!cutBoard) }, [woodType, width, length, cutBoard, onDirty])
+  useEffect(() => { onDirty(!!woodType || !!width || length !== 3000 || thickness !== 32 || !!cutBoard) }, [woodType, width, length, thickness, cutBoard, onDirty])
   useEffect(() => {
     let active = true
     stockApi<Board[]>().then(data => { if (active) setBoards(data) }).catch(e => { if (active) setError(e.message) }).finally(() => { if (active) setLoading(false) })
@@ -58,10 +59,26 @@ export function BoardStock({ catalog, onDirty }: { catalog: Catalog; onDirty: (d
   const add = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError(''); setNotice('')
     try {
-      const board = await stockApi<Board>('', { woodType, widthMm: Number(width), lengthMm: length })
-      setBoards(prev => [board, ...prev]); setWoodType(''); setWidth(''); setLength(3000)
+      const board = await stockApi<Board>('', { woodType, widthMm: Number(width), lengthMm: length, thicknessMm: thickness })
+      setBoards(prev => [board, ...prev]); setWoodType(''); setWidth(''); setLength(3000); setThickness(32)
       setNotice(`Fošna #${board.id} byla přidána do skladu.`)
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
+  const saveThickness = async (board: Board, thicknessMm: number) => {
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const saved = await stockApi<Board>(`/${board.id}/thickness`, { thicknessMm })
+      setBoards(prev => prev.map(b => b.id === saved.id ? saved : b))
+      setNotice(`Tloušťka kusu #${board.id} byla uložena.`)
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
+  const editThickness = (board: Board, field: HTMLInputElement) => {
+    const value = Number(field.value)
+    field.value = board.thicknessMm?.toString() ?? ''
+    if (!Number.isInteger(value) || value <= 0 || value > 2147483647) {
+      setError('Tloušťka musí být kladná, v celých milimetrech.'); return
+    }
+    if (value !== board.thicknessMm) void saveThickness(board, value)
   }
   const openCut = (board: Board) => {
     setCutBoard(board); setAxis(board.stage === 'width' ? 'width' : 'length'); setSize(''); setKerf('3'); setCutError('')
@@ -93,14 +110,15 @@ export function BoardStock({ catalog, onDirty }: { catalog: Catalog; onDirty: (d
         <label className="field"><span>Dřevina</span><input required maxLength={100} list="stock-wood-types" value={woodType} onChange={e => setWoodType(e.target.value)} placeholder="Např. Dub" disabled={busy}/><datalist id="stock-wood-types">{catalog.wood.map(w => <option key={w.name} value={w.name}/>)}</datalist></label>
         <label className="field"><span>Šířka (mm)</span><input required type="number" min="1" max="2147483647" step="1" value={width} onChange={e => setWidth(e.target.value)} placeholder="Např. 300" disabled={busy}/></label>
         <label className="field"><span>Délka</span><select value={length} onChange={e => setLength(Number(e.target.value))} disabled={busy}>{[3000, 4000, 5000].map(l => <option key={l} value={l}>{l / 1000} m</option>)}</select></label>
+        <label className="field"><span>Tloušťka (mm)</span><input required type="number" min="1" step="1" value={thickness} onChange={e => setThickness(Number(e.target.value))} disabled={busy}/></label>
         <button className="primary" disabled={busy || loading || !woodType.trim() || !width}><Plus size={17}/>{busy && !cutBoard ? 'Ukládám…' : 'Přidat do skladu'}</button>
       </form>
     </section>
     <section className="panel stock-list">
       <div className="panel-head"><div><h2>Kusy ve skladu</h2><p>{available.length} ks · {num(available.reduce((sum, b) => sum + b.widthMm * b.lengthMm / 1_000_000, 0))} m²</p></div><div className="stock-filters"><label><input type="checkbox" checked={history} onChange={e => setHistory(e.target.checked)}/> Zobrazit i rozřezané</label><input aria-label="Hledat ve skladu" placeholder="Dřevina nebo #číslo" value={search} onChange={e => setSearch(e.target.value)}/></div></div>
-      <div className="table-scroll"><table><thead><tr><th>Kus</th><th>Dřevina</th><th>Šířka</th><th>Délka</th><th>Původ</th><th>Stav</th><th>Akce</th></tr></thead><tbody>
-        {visible.map(board => <tr key={board.id}><td><strong>#{board.id}</strong></td><td>{board.woodType}</td><td>{num(board.widthMm)} mm</td><td>{num(board.lengthMm)} mm</td><td>{board.parentId ? `Z kusu #${board.parentId}` : 'Příjem fošny'}</td><td>{board.isCut ? <><strong>Rozřezáno na {board.cutAxis === 'length' ? 'délku' : 'šířku'}</strong><small className="stock-cut-note">Řez {num(board.cutSizeMm!)} mm, prořez {num(board.kerfMm!)} mm<br/>Kusy {boards.filter(b => b.parentId === board.id).map(b => `#${b.id}`).join(', ')}</small></> : stageLabels[board.stage]}</td><td>{!board.isCut && <button className="secondary" disabled={busy || loading} onClick={() => openCut(board)}><Scissors size={15}/> Rozřezat</button>}</td></tr>)}
-        {!visible.length && <tr><td colSpan={7} className="stock-empty">{loading ? 'Načítám sklad…' : error ? 'Sklad se nepodařilo načíst. Zkuste jej obnovit.' : boards.length ? 'Žádné kusy neodpovídají filtru.' : 'Sklad je prázdný. Přidejte první fošnu.'}</td></tr>}
+      <div className="table-scroll"><table><thead><tr><th>Kus</th><th>Dřevina</th><th>Šířka</th><th>Délka</th><th>Tloušťka</th><th>Původ</th><th>Stav</th><th>Akce</th></tr></thead><tbody>
+        {visible.map(board => <tr key={board.id}><td><strong>#{board.id}</strong></td><td>{board.woodType}</td><td>{num(board.widthMm)} mm</td><td>{num(board.lengthMm)} mm</td><td>{board.isCut ? board.thicknessMm ? `${num(board.thicknessMm)} mm` : 'Nezadána' : <input className="table-input small" aria-label={`Tloušťka kusu #${board.id} (mm)`} type="number" min="1" step="1" key={board.thicknessMm} defaultValue={board.thicknessMm ?? ''} placeholder="Doplnit" disabled={busy || loading} onBlur={e => editThickness(board, e.currentTarget)}/>}</td><td>{board.parentId ? `Z kusu #${board.parentId}` : 'Příjem fošny'}</td><td>{board.isCut ? <><strong>Rozřezáno na {board.cutAxis === 'length' ? 'délku' : 'šířku'}</strong><small className="stock-cut-note">Řez {num(board.cutSizeMm!)} mm, prořez {num(board.kerfMm!)} mm<br/>Kusy {boards.filter(b => b.parentId === board.id).map(b => `#${b.id}`).join(', ')}</small></> : stageLabels[board.stage]}</td><td>{!board.isCut && <button className="secondary" disabled={busy || loading} onClick={() => openCut(board)}><Scissors size={15}/> Rozřezat</button>}</td></tr>)}
+        {!visible.length && <tr><td colSpan={8} className="stock-empty">{loading ? 'Načítám sklad…' : error ? 'Sklad se nepodařilo načíst. Zkuste jej obnovit.' : boards.length ? 'Žádné kusy neodpovídají filtru.' : 'Sklad je prázdný. Přidejte první fošnu.'}</td></tr>}
       </tbody></table></div>
     </section>
     {cutBoard && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget && !busy) setCutBoard(null) }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="stock-cut-title"><form onSubmit={cut}>

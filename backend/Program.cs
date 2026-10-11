@@ -54,6 +54,8 @@ app.MapGet("/api/pricing-defaults", async (AppDb db) =>
     await db.PricingDefaults.AsNoTracking().SingleOrDefaultAsync(p => p.Id == 1) ?? new PricingDefaults());
 app.MapPut("/api/pricing-defaults", async (PricingDefaults defaults, AppDb db) =>
 {
+    if (!CuttingPlanner.ValidSettings(defaults.LamellaMinLengthMm, defaults.LamellaMinWidthMm, defaults.LamellaMaxWidthMm))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["cuttingPlan"] = [CuttingPlanner.SettingsError] });
     var values = new[] { defaults.WoodReservePercent, defaults.MaterialOverheadPercent, defaults.MaterialMarginPercent,
         defaults.LaborMarginPercent, defaults.ServiceMarginPercent, defaults.FinanceMarginPercent, defaults.DiscountPercent, defaults.GlueBoardWastePercent };
     if (defaults.Id != 1 || values.Any(value => value < 0 || value > 100))
@@ -171,6 +173,13 @@ app.MapPatch("/api/invoices/{id:int}/status", async (int id, InvoiceStatusReques
     return Results.Ok(InvoiceResponse.From(invoice));
 });
 app.MapBoardStock();
+app.MapPost("/api/cutting-plan", async (ProjectInput input, AppDb db) =>
+{
+    var errors = Validator.Validate(input);
+    if (errors.Count > 0) return Results.ValidationProblem(errors);
+    var boards = await db.StockBoards.AsNoTracking().Where(b => !b.IsCut).OrderBy(b => b.Id).ToListAsync();
+    return Results.Ok(CuttingPlanner.Create(input, boards));
+});
 app.Run();
 
 static async Task<CatalogData> LoadCatalog(AppDb db)
