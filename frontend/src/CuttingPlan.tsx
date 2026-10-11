@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Scissors } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Printer, Scissors } from 'lucide-react'
+import { CuttingPlanPrint } from './CuttingPlanPrint'
 import type { CuttingPlanResult, ProjectInput } from './types'
 
 const num = (value: number) => new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 2 }).format(value)
@@ -11,9 +13,19 @@ export function CuttingPlan({ input, update }: {
   const [plan, setPlan] = useState<CuttingPlanResult | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [printing, setPrinting] = useState(false)
   const generation = useRef(0)
   useEffect(() => { generation.current++; setPlan(null); setError(''); setBusy(false) }, [input])
   useEffect(() => () => { generation.current++ }, [])
+  useEffect(() => {
+    if (!printing) return
+    const finishPrint = () => setPrinting(false)
+    window.addEventListener('afterprint', finishPrint)
+    const frame = window.requestAnimationFrame(() => {
+      try { window.print() } finally { finishPrint() }
+    })
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener('afterprint', finishPrint) }
+  }, [printing])
   const create = async () => {
     const request = ++generation.current
     setBusy(true); setError(''); setPlan(null)
@@ -26,7 +38,7 @@ export function CuttingPlan({ input, update }: {
     finally { if (request === generation.current) setBusy(false) }
   }
   return <section className="panel form-panel">
-    <div className="section-title"><div><h2>Nářezový plán ze skladu</h2><p>Lamely z dostupných fošen a zbytků podle dřeviny a tloušťky</p></div><button type="button" className="secondary" disabled={busy || !input.woodParts.length} onClick={create}><Scissors size={17}/>{busy ? 'Připravuji…' : 'Vytvořit nářezový plán'}</button></div>
+    <div className="section-title cutting-plan-actions"><div><h2>Nářezový plán ze skladu</h2><p>Lamely z dostupných fošen a zbytků podle dřeviny a tloušťky</p></div><div className="heading-actions"><button type="button" className="secondary" disabled={busy || !input.woodParts.length} onClick={create}><Scissors size={17}/>{busy ? 'Připravuji…' : 'Vytvořit nářezový plán'}</button><button type="button" className="secondary" disabled={!plan || busy || printing} onClick={() => setPrinting(true)}><Printer size={17}/> Tisk nářezového plánu</button></div></div>
     <div className="pricing-grid">
       {([
         ['glueBoardMaxWidthMm', 'Největší šířka spárovky pro spojení dílců (mm)'],
@@ -45,5 +57,6 @@ export function CuttingPlan({ input, update }: {
       {!!plan.shortages.length && <div className="table-scroll"><table><thead><tr><th>Chybějící dřevina</th><th>Tloušťka fošny</th><th>Délka lamely</th><th>Chybějící součet šířek</th></tr></thead><tbody>{plan.shortages.map((s, i) => <tr key={i}><td>{s.woodType}</td><td>{num(s.boardThicknessMm)} mm</td><td>{num(s.lengthMm)} mm</td><td>{num(s.missingWidthMm)} mm</td></tr>)}</tbody></table></div>}
       {!!plan.lamellas.length && <><p>Každý řádek představuje jednu lamelu. Poloha je vzdálenost od začátku skladového kusu. Nejprve řežte na délku, potom na šířku; již podélně nařezané kusy zachovávají svou délku.</p><div className="table-scroll"><table><thead><tr><th>Deska</th><th>Fošna / kus</th><th>Dřevina</th><th>Tloušťka</th><th>Délka lamely</th><th>Šířka pro řezání</th><th>Šířka po srovnání</th><th>Poloha na délku</th><th>Poloha na šířku</th></tr></thead><tbody>{plan.lamellas.map((l, i) => <tr key={i}><td>#{l.panelId}</td><td><strong>#{l.boardId}</strong></td><td>{l.woodType}</td><td>{num(l.boardThicknessMm)} mm</td><td>{num(l.lengthMm)} mm</td><td>{num(l.widthMm)} mm</td><td>{num(l.finishedWidthMm)} mm</td><td>{num(l.offsetLengthMm)} mm</td><td>{num(l.offsetWidthMm)} mm</td></tr>)}</tbody></table></div></>}
     </>}
+    {printing && plan && createPortal(<CuttingPlanPrint input={input} plan={plan}/>, document.body)}
   </section>
 }

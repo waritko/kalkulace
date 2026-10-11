@@ -73,6 +73,8 @@ Pokud se celý požadavek nepodaří pokrýt, zobrazí částečný plán a chyb
 
 Vytvoření plánu sklad nemění a materiál nerezervuje. Před řezáním plán znovu vytvořte podle aktuálního skladu a zkontrolujte stav dřeva. Změna zadání ruší zobrazený plán; parametry zůstávají uloženy se zakázkou, samotný seznam se vždy vytváří z aktuálního skladu. Nářezové parametry nemění cenu kalkulace.
 
+Po vytvoření plánu tlačítko **Tisk nářezového plánu** otevře tiskový dialog prohlížeče pro tisk nebo uložení PDF. Sestava nejprve uvádí rozřezání na délku podle čísel skladových fošen: každý úsek má označení, polohu od začátku fošny, délku a počet lamel. Úseky stejné délky na různých místech fošny jsou uvedeny samostatně. Druhá část začíná na nové stránce a pro každý označený úsek uvádí lamely v pořadí na šířku, šířku pro řezání i po srovnání a číslo výsledné desky. Všechny rozměry jsou v milimetrech; polohy zahrnují mezery pro prořez. Tisk obsahuje také upozornění a chybějící materiál při neúplném plánu.
+
 ## Výpočet
 
 - Množství dřeva v kalkulaci vychází z plochy nákupních lamel pro spárovku včetně přídavku k délce, sloučení délek a prořezu (výchozí 10 %). Pro tloušťku dílu pod 29 mm se používá fošna 32 mm, jinak 50 mm. Objem × cena/m³ určuje cenu dřeva; volitelná rezerva se přidává k ceně.
