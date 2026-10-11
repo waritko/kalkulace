@@ -2,7 +2,7 @@ namespace Kalkulace.Api;
 
 public record WoodPart(string Name, string WoodType, decimal WidthMm, decimal LengthMm, decimal ThicknessMm, decimal Quantity, decimal PricePerM3, string? Finish, bool ApplyFinish = false);
 public record CostLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false, string? AutomaticMachineryCharge = null, string? MaterialType = null, bool AutomaticFinish = false, DateOnly? WorkDate = null);
-public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines, decimal LamellaLengthExtraMm = 50m, decimal LamellaMergeToleranceMm = 50m, decimal GlueBoardWastePercent = 10m, int LamellaMinLengthMm = 350, int LamellaMinWidthMm = 50, int LamellaMaxWidthMm = 110, int LamellaWidthLossMm = 4, int GlueBoardMaxWidthMm = 900);
+public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines, decimal LamellaLengthExtraMm = 50m, decimal LamellaMergeToleranceMm = 50m, decimal GlueBoardWastePercent = 10m, int LamellaMinLengthMm = 350, int LamellaMinWidthMm = 50, int LamellaMaxWidthMm = 110, int LamellaWidthLossMm = 4, int GlueBoardMaxWidthMm = 900, int OffcutMinWidthMm = 50, int OffcutMinLengthMm = 350);
 public record ProjectListItem(int Id, string Name, string CustomerName, DateTimeOffset UpdatedAt);
 public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, DateTimeOffset UpdatedAt)
 {
@@ -34,7 +34,7 @@ public static class Validator
     public static Dictionary<string, string[]> Validate(ProjectInput input)
     {
         var errors = new Dictionary<string, string[]>();
-        if (!CuttingPlanner.ValidSettings(input.LamellaMinLengthMm, input.LamellaMinWidthMm, input.LamellaMaxWidthMm, input.LamellaWidthLossMm, input.GlueBoardMaxWidthMm))
+        if (!CuttingPlanner.ValidSettings(input.LamellaMinLengthMm, input.LamellaMinWidthMm, input.LamellaMaxWidthMm, input.LamellaWidthLossMm, input.GlueBoardMaxWidthMm, input.OffcutMinWidthMm, input.OffcutMinLengthMm))
             errors["cuttingPlan"] = [CuttingPlanner.SettingsError];
         if (string.IsNullOrWhiteSpace(input.Name)) errors["name"] = ["Zadejte název zakázky."];
         if (input.WoodParts is null || input.Lines is null) errors["lines"] = ["Položky musí být zadány jako seznam."];

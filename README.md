@@ -75,7 +75,7 @@ Vytvoření plánu sklad nemění a materiál nerezervuje. Před řezáním plá
 
 Po vytvoření plánu tlačítko **Tisk nářezového plánu** otevře tiskový dialog prohlížeče pro tisk nebo uložení PDF. Sestava nejprve uvádí rozřezání na délku podle čísel skladových fošen: každý úsek má označení, polohu od začátku fošny, délku a počet lamel. Úseky stejné délky na různých místech fošny jsou uvedeny samostatně. Druhá část začíná na nové stránce a pro každý označený úsek uvádí lamely v pořadí na šířku, šířku pro řezání i po srovnání a číslo výsledné desky. Všechny rozměry jsou v milimetrech; polohy zahrnují mezery pro prořez. Tisk obsahuje také upozornění a chybějící materiál při neúplném plánu.
 
-Na konci sestavy jsou odpadní kusy a zbytky pro další použití, které zůstanou z použitých fošen po všech plánovaných řezech, včetně úzkých odřezků. Seznam uvádí číslo původní fošny, dřevinu, tloušťku, délku, šířku a polohu na délku i šířku. Nezahrnuje prořez pily, úběr při srovnávání ani nepoužité skladové kusy.
+Na konci sestavy jsou odpadní kusy a zbytky pro další použití, které zůstanou z použitých fošen po všech plánovaných řezech, včetně úzkých odřezků. Seznam uvádí číslo původní fošny, dřevinu, tloušťku, délku, šířku a polohu na délku i šířku. Prořez pily je zahrnutý jako samostatné položky odpadu (včetně řezu u okraje užšího než 3 mm). Úběr při srovnávání ani nepoužité skladové kusy se neuvádějí. Zbytky jsou označené **Ponechat na skladě**, pokud mají po odečtení prořezu šířku alespoň 50 mm a délku alespoň 350 mm; menší kusy jsou **Odpad**. Obě meze lze změnit u nářezového plánu a ve výchozích nastaveních, ukládají se se zakázkou a při aktualizaci starších dat dostanou hodnoty 50 × 350 mm. Přehled je i na obrazovce; plán sám sklad nemění.
 
 ## Výpočet
 

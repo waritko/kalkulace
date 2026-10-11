@@ -61,8 +61,8 @@ export function CuttingPlanPrint({ input, plan }: { input: ProjectInput; plan: C
     </section>
     <section>
       <h2>3. Odpadní kusy a zbytky</h2>
-      <p>Kusy zbývající z použitých fošen po všech plánovaných řezech, včetně zbytků pro další použití. Rozměry nezahrnují prořez pily ani úběr při srovnávání. Polohy jsou od začátku původního skladového kusu.</p>
-      {plan.offcuts.length ? <table><thead><tr><th>Fošna / kus</th><th>Dřevina</th><th>Tloušťka</th><th>Délka</th><th>Šířka</th><th>Poloha na délku</th><th>Poloha na šířku</th></tr></thead><tbody>{plan.offcuts.map((offcut, i) => <tr key={i}><td>#{offcut.boardId}</td><td>{offcut.woodType}</td><td>{num(offcut.boardThicknessMm)}</td><td>{num(offcut.lengthMm)}</td><td>{num(offcut.widthMm)}</td><td>{num(offcut.offsetLengthMm)}</td><td>{num(offcut.offsetWidthMm)}</td></tr>)}</tbody></table> : <p>Po plánovaných řezech nezbývají žádné odpadní kusy ani zbytky.</p>}
+      <p>Kusy zbývající z použitých fošen po všech plánovaných řezech, včetně zbytků pro další použití. Prořez pily je uveden samostatně jako odpad; úběr při srovnávání se zde neuvádí. Polohy jsou od začátku původního skladového kusu. Na skladě ponechat kusy se šířkou alespoň {num(input.offcutMinWidthMm)} mm a délkou alespoň {num(input.offcutMinLengthMm)} mm po odečtení prořezu.</p>
+      {plan.offcuts.length ? <table><thead><tr><th>Fošna / kus</th><th>Dřevina</th><th>Tloušťka</th><th>Délka</th><th>Šířka</th><th>Poloha na délku</th><th>Poloha na šířku</th><th>Určení</th></tr></thead><tbody>{plan.offcuts.map((offcut, i) => <tr key={i}><td>#{offcut.boardId}</td><td>{offcut.woodType}</td><td>{num(offcut.boardThicknessMm)}</td><td>{num(offcut.lengthMm)}</td><td>{num(offcut.widthMm)}</td><td>{num(offcut.offsetLengthMm)}</td><td>{num(offcut.offsetWidthMm)}</td><td>{offcut.isKerf ? 'Prořez pily' : offcut.keepInStock ? 'Ponechat na skladě' : 'Odpad'}</td></tr>)}</tbody></table> : <p>Po plánovaných řezech nezbývají žádné odpadní kusy ani zbytky.</p>}
     </section>
   </article>
 }

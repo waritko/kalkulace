@@ -6,7 +6,7 @@ async function api(path, body, status = 200, method = 'POST') {
   assert.equal(response.status, status, text)
   return text ? JSON.parse(text) : undefined
 }
-const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plánu', budgetLimit: 0, nonVatPayer: false, woodReservePercent: 0, materialOverheadPercent: 0, materialMarginPercent: 5, laborMarginPercent: 0, serviceMarginPercent: 15, financeMarginPercent: 15, discountPercent: 0, lamellaLengthExtraMm: 50, lamellaMergeToleranceMm: 50, glueBoardWastePercent: 10, lamellaMinLengthMm: 350, lamellaMinWidthMm: 50, lamellaMaxWidthMm: 110, lamellaWidthLossMm: 4, glueBoardMaxWidthMm: 900, woodParts: [{ name: 'Police', woodType, widthMm: 200, lengthMm: 500, thicknessMm: 25, quantity: 1, pricePerM3: 10000 }], lines: [], ...overrides })
+const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plánu', budgetLimit: 0, nonVatPayer: false, woodReservePercent: 0, materialOverheadPercent: 0, materialMarginPercent: 5, laborMarginPercent: 0, serviceMarginPercent: 15, financeMarginPercent: 15, discountPercent: 0, lamellaLengthExtraMm: 50, lamellaMergeToleranceMm: 50, glueBoardWastePercent: 10, lamellaMinLengthMm: 350, lamellaMinWidthMm: 50, lamellaMaxWidthMm: 110, lamellaWidthLossMm: 4, glueBoardMaxWidthMm: 900, offcutMinWidthMm: 50, offcutMinLengthMm: 350, woodParts: [{ name: 'Police', woodType, widthMm: 200, lengthMm: 500, thicknessMm: 25, quantity: 1, pricePerM3: 10000 }], lines: [], ...overrides })
 ;(async () => {
   const wood = `Plan-${Date.now()}`
   const input = project(wood)
@@ -14,7 +14,8 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   assert.deepEqual([defaults.lamellaMinLengthMm, defaults.lamellaMinWidthMm, defaults.lamellaMaxWidthMm], [350, 50, 110])
   assert.equal(defaults.lamellaWidthLossMm, 4)
   assert.equal(defaults.glueBoardMaxWidthMm, 900)
-  for (const invalid of [{ glueBoardMaxWidthMm: 0 }, { glueBoardMaxWidthMm: 900.5 }, { lamellaMinLengthMm: 0 }, { lamellaMinWidthMm: -1 }, { lamellaMaxWidthMm: 49 }, { lamellaMinWidthMm: 50.5 }, { lamellaWidthLossMm: -1 }, { lamellaWidthLossMm: 50 }, { lamellaWidthLossMm: 4.5 }]) {
+  assert.deepEqual([defaults.offcutMinWidthMm, defaults.offcutMinLengthMm], [50, 350])
+  for (const invalid of [{ offcutMinWidthMm: 0 }, { offcutMinLengthMm: -1 }, { offcutMinWidthMm: 50.5 }, { offcutMinLengthMm: 350.5 }, { glueBoardMaxWidthMm: 0 }, { glueBoardMaxWidthMm: 900.5 }, { lamellaMinLengthMm: 0 }, { lamellaMinWidthMm: -1 }, { lamellaMaxWidthMm: 49 }, { lamellaMinWidthMm: 50.5 }, { lamellaWidthLossMm: -1 }, { lamellaWidthLossMm: 50 }, { lamellaWidthLossMm: 4.5 }]) {
     await api('/cutting-plan', { ...input, ...invalid }, 400)
     await api('/pricing-defaults', { ...defaults, ...invalid }, 400, 'PUT')
   }
@@ -46,7 +47,7 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
     assert.ok(p.offsetWidthMm + p.widthMm <= unknown.widthMm)
     assert.ok(p.offsetLengthMm + p.lengthMm <= unknown.lengthMm)
     for (const other of rectangles) if (p !== other)
-      assert.ok(p.offsetWidthMm + p.widthMm + 3 <= other.offsetWidthMm || other.offsetWidthMm + other.widthMm + 3 <= p.offsetWidthMm || p.offsetLengthMm + p.lengthMm + 3 <= other.offsetLengthMm || other.offsetLengthMm + other.lengthMm + 3 <= p.offsetLengthMm, 'Offcuts must not overlap lamellas or other offcuts, including kerf')
+      assert.ok(p.offsetWidthMm + p.widthMm <= other.offsetWidthMm || other.offsetWidthMm + other.widthMm <= p.offsetWidthMm || p.offsetLengthMm + p.lengthMm <= other.offsetLengthMm || other.offsetLengthMm + other.lengthMm <= p.offsetLengthMm, 'Waste including kerf must not overlap other rectangles')
   }
   // Check geometry including kerf, not just the reported totals.
   for (const l of plan.lamellas) {
@@ -61,16 +62,30 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   assert.equal(impossible.complete, false)
   assert.equal(impossible.lamellas.length, 0)
   assert.deepEqual(impossible.offcuts, [])
-  // Report both the length remainder and narrow width scrap, excluding sawdust.
+  assert.equal(rectangles.reduce((sum, p) => sum + p.lengthMm * p.widthMm, 0), unknown.lengthMm * unknown.widthMm, 'Lamellas, offcuts and kerf account for the entire used board')
+  // Report length and width scraps and both saw cuts.
   const scrapWood = wood + '-offcuts'
   const scrapBoard = await api('/stock/boards', { woodType: scrapWood, widthMm: 80, lengthMm: 1000, thicknessMm: 32 }, 201)
   const scrapInput = project(scrapWood, { lamellaLengthExtraMm: 0, woodParts: [{ ...input.woodParts[0], woodType: scrapWood, widthMm: 50 }] })
   const scrap = await api('/cutting-plan', scrapInput)
   assert.equal(scrap.complete, true)
   assert.deepEqual(scrap.offcuts, [
-    { boardId: scrapBoard.id, woodType: scrapWood, boardThicknessMm: 32, lengthMm: 500, widthMm: 23, offsetWidthMm: 57, offsetLengthMm: 0 },
-    { boardId: scrapBoard.id, woodType: scrapWood, boardThicknessMm: 32, lengthMm: 497, widthMm: 80, offsetWidthMm: 0, offsetLengthMm: 503 },
+    { boardId: scrapBoard.id, woodType: scrapWood, boardThicknessMm: 32, lengthMm: 500, widthMm: 3, offsetWidthMm: 54, offsetLengthMm: 0, isKerf: true, keepInStock: false },
+    { boardId: scrapBoard.id, woodType: scrapWood, boardThicknessMm: 32, lengthMm: 500, widthMm: 23, offsetWidthMm: 57, offsetLengthMm: 0, isKerf: false, keepInStock: false },
+    { boardId: scrapBoard.id, woodType: scrapWood, boardThicknessMm: 32, lengthMm: 3, widthMm: 80, offsetWidthMm: 0, offsetLengthMm: 500, isKerf: true, keepInStock: false },
+    { boardId: scrapBoard.id, woodType: scrapWood, boardThicknessMm: 32, lengthMm: 497, widthMm: 80, offsetWidthMm: 0, offsetLengthMm: 503, isKerf: false, keepInStock: true },
   ])
+  for (const [width, length, count] of [[23, 497, 2], [24, 497, 1], [80, 498, 0]]) {
+    const result = await api('/cutting-plan', { ...scrapInput, offcutMinWidthMm: width, offcutMinLengthMm: length })
+    assert.equal(result.offcuts.filter(p => p.keepInStock).length, count, 'Both thresholds are inclusive and use dimensions after kerf')
+    assert.deepEqual(result.lamellas, scrap.lamellas, 'Storage thresholds do not change cutting')
+    assert.ok(result.offcuts.filter(p => p.isKerf).every(p => !p.keepInStock))
+  }
+  // Trim smaller than the saw width is wholly sawdust and stays inside the board.
+  const edgeWood = wood + '-edge'
+  await api('/stock/boards', { woodType: edgeWood, widthMm: 55, lengthMm: 502, thicknessMm: 32 }, 201)
+  const edge = await api('/cutting-plan', project(edgeWood, { lamellaLengthExtraMm: 0, woodParts: [{ ...input.woodParts[0], woodType: edgeWood, widthMm: 50 }] }))
+  assert.deepEqual(edge.offcuts.map(p => [p.widthMm, p.lengthMm, p.isKerf]), [[1, 500, true], [55, 2, true]])
   // Exact fits leave no offcuts, including already ripped stock.
   const exactWood = wood + '-exact'
   const exactBoard = await api('/stock/boards', { woodType: exactWood, widthMm: 103, lengthMm: 1003, thicknessMm: 32 }, 201)
@@ -86,8 +101,8 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   plan = await api('/cutting-plan', input)
   assert.ok(plan.lamellas.every(l => l.boardId !== unknown.id && l.boardId !== children[0].id))
   assert.ok(plan.lamellas.some(l => strips.some(s => s.id === l.boardId) && l.lengthMm === 600), 'Previously ripped stock must keep its length')
-  const saved = await api('/projects', { ...input, lamellaMinLengthMm: 410, lamellaMinWidthMm: 60, lamellaMaxWidthMm: 95, lamellaWidthLossMm: 8, glueBoardMaxWidthMm: 750 }, 201)
-  const changedDefaults = { ...defaults, lamellaMinLengthMm: 600, lamellaMinWidthMm: 70, lamellaMaxWidthMm: 100, lamellaWidthLossMm: 6, glueBoardMaxWidthMm: 800 }
+  const saved = await api('/projects', { ...input, lamellaMinLengthMm: 410, lamellaMinWidthMm: 60, lamellaMaxWidthMm: 95, lamellaWidthLossMm: 8, glueBoardMaxWidthMm: 750, offcutMinWidthMm: 65, offcutMinLengthMm: 450 }, 201)
+  const changedDefaults = { ...defaults, lamellaMinLengthMm: 600, lamellaMinWidthMm: 70, lamellaMaxWidthMm: 100, lamellaWidthLossMm: 6, glueBoardMaxWidthMm: 800, offcutMinWidthMm: 75, offcutMinLengthMm: 550 }
   await api('/pricing-defaults', changedDefaults, 200, 'PUT')
   assert.equal((await api('/pricing-defaults')).lamellaMinLengthMm, 600)
   assert.equal((await api('/pricing-defaults')).lamellaWidthLossMm, 6)
@@ -95,17 +110,21 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   assert.deepEqual([loaded.input.lamellaMinLengthMm, loaded.input.lamellaMinWidthMm, loaded.input.lamellaMaxWidthMm], [410, 60, 95])
   assert.equal(loaded.input.lamellaWidthLossMm, 8)
   assert.equal(loaded.input.glueBoardMaxWidthMm, 750)
+  assert.deepEqual([loaded.input.offcutMinWidthMm, loaded.input.offcutMinLengthMm], [65, 450])
+  const newDefaults = await api('/pricing-defaults')
+  assert.deepEqual([newDefaults.offcutMinWidthMm, newDefaults.offcutMinLengthMm], [75, 550])
   assert.equal((await api('/pricing-defaults')).glueBoardMaxWidthMm, 800)
   await api(`/projects/${saved.id}`, { ...loaded.input, lamellaMinLengthMm: 420 }, 200, 'PUT')
   assert.equal((await api(`/projects/${saved.id}`)).input.lamellaMinLengthMm, 420)
   await api('/pricing-defaults', defaults, 200, 'PUT')
   // Older clients/projects without the new fields retain documented defaults.
   const legacy = { ...input }
-  for (const key of ['lamellaMinLengthMm', 'lamellaMinWidthMm', 'lamellaMaxWidthMm', 'lamellaWidthLossMm', 'glueBoardMaxWidthMm']) delete legacy[key]
+  for (const key of ['lamellaMinLengthMm', 'lamellaMinWidthMm', 'lamellaMaxWidthMm', 'lamellaWidthLossMm', 'glueBoardMaxWidthMm', 'offcutMinWidthMm', 'offcutMinLengthMm']) delete legacy[key]
   const old = await api('/projects', legacy, 201)
   assert.deepEqual([old.input.lamellaMinLengthMm, old.input.lamellaMinWidthMm, old.input.lamellaMaxWidthMm], [350, 50, 110])
   assert.equal(old.input.lamellaWidthLossMm, 4)
   assert.equal(old.input.glueBoardMaxWidthMm, 900)
+  assert.deepEqual([old.input.offcutMinWidthMm, old.input.offcutMinLengthMm], [50, 350])
   // Stock fits five 110 mm lamellas; jointing reduces their usable width.
   const jointWood = wood + '-jointing'
   const jointBoard = await api('/stock/boards', { woodType: jointWood, widthMm: 110, lengthMm: 5012, thicknessMm: 32 }, 201)

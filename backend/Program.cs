@@ -54,7 +54,7 @@ app.MapGet("/api/pricing-defaults", async (AppDb db) =>
     await db.PricingDefaults.AsNoTracking().SingleOrDefaultAsync(p => p.Id == 1) ?? new PricingDefaults());
 app.MapPut("/api/pricing-defaults", async (PricingDefaults defaults, AppDb db) =>
 {
-    if (!CuttingPlanner.ValidSettings(defaults.LamellaMinLengthMm, defaults.LamellaMinWidthMm, defaults.LamellaMaxWidthMm, defaults.LamellaWidthLossMm, defaults.GlueBoardMaxWidthMm))
+    if (!CuttingPlanner.ValidSettings(defaults.LamellaMinLengthMm, defaults.LamellaMinWidthMm, defaults.LamellaMaxWidthMm, defaults.LamellaWidthLossMm, defaults.GlueBoardMaxWidthMm, defaults.OffcutMinWidthMm, defaults.OffcutMinLengthMm))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["cuttingPlan"] = [CuttingPlanner.SettingsError] });
     var values = new[] { defaults.WoodReservePercent, defaults.MaterialOverheadPercent, defaults.MaterialMarginPercent,
         defaults.LaborMarginPercent, defaults.ServiceMarginPercent, defaults.FinanceMarginPercent, defaults.DiscountPercent, defaults.GlueBoardWastePercent };

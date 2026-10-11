@@ -2,17 +2,17 @@ namespace Kalkulace.Api;
 
 public record PlannedLamella(int BoardId, string WoodType, int BoardThicknessMm, int LengthMm, int WidthMm, int OffsetWidthMm, int OffsetLengthMm, int FinishedWidthMm, int PanelId);
 public record CuttingShortage(string WoodType, decimal BoardThicknessMm, decimal LengthMm, decimal MissingWidthMm);
-public record PlannedOffcut(int BoardId, string WoodType, int BoardThicknessMm, int LengthMm, int WidthMm, int OffsetWidthMm, int OffsetLengthMm);
+public record PlannedOffcut(int BoardId, string WoodType, int BoardThicknessMm, int LengthMm, int WidthMm, int OffsetWidthMm, int OffsetLengthMm, bool IsKerf, bool KeepInStock);
 public record CuttingPlan(bool Complete, int KerfMm, List<PlannedLamella> Lamellas, List<CuttingShortage> Shortages, List<string> Warnings, List<PlannedPanel> Panels, List<PlannedOffcut> Offcuts);
 public record PanelPart(int PartIndex, string Name, decimal LengthMm, decimal WidthMm, decimal OffsetLengthMm, decimal OffsetWidthMm);
 public record PlannedPanel(int Id, string WoodType, decimal BoardThicknessMm, decimal LengthMm, decimal WidthMm, List<PanelPart> Parts);
 
 public static class CuttingPlanner
 {
-    public const string SettingsError = "Nejmenší délka a šířky lamely musí být kladné celé milimetry; největší šířka nesmí být menší než nejmenší. Největší šířka spárovky musí být kladná v celých milimetrech. Úběr šířky při srovnávání musí být nezáporný a menší než nejmenší šířka lamely.";
+    public const string SettingsError = "Nejmenší délka a šířky lamely musí být kladné celé milimetry; největší šířka nesmí být menší než nejmenší. Největší šířka spárovky musí být kladná v celých milimetrech. Úběr šířky při srovnávání musí být nezáporný a menší než nejmenší šířka lamely. Nejmenší šířka a délka zbytku pro sklad musí být kladné celé milimetry.";
     private const int Kerf = 3;
     private const int MaxLamellas = 20_000;
-    public static bool ValidSettings(int length, int minWidth, int maxWidth, int widthLoss, int panelWidth) => length > 0 && minWidth > 0 && maxWidth >= minWidth && widthLoss >= 0 && widthLoss < minWidth && panelWidth > 0;
+    public static bool ValidSettings(int length, int minWidth, int maxWidth, int widthLoss, int panelWidth, int offcutWidth, int offcutLength) => length > 0 && minWidth > 0 && maxWidth >= minWidth && widthLoss >= 0 && widthLoss < minWidth && panelWidth > 0 && offcutWidth > 0 && offcutLength > 0;
 
     // A free rectangle retains its source coordinates. Cut across the grain first,
     // then rip the resulting section; never reuse material allocated to a lamella.
@@ -75,6 +75,7 @@ public static class CuttingPlanner
             .Select(b => new FreePiece(b, b.WidthMm, b.LengthMm, CanShorten: b.Stage != "width")).ToList();
         var lamellas = new List<PlannedLamella>();
         var discarded = new List<FreePiece>();
+        var sawdust = new List<FreePiece>();
         var shortages = new List<CuttingShortage>();
         var warnings = new List<string>();
         if (panels.Any(p => p.WidthMm > input.GlueBoardMaxWidthMm)) warnings.Add("Samostatný dílec je širší než nastavená šířka spárovky; plán jej ponechává samostatně v požadované šířce.");
@@ -101,6 +102,12 @@ public static class CuttingPlanner
                 width = (int)Math.Min(width, Math.Max(input.LamellaMinWidthMm, Math.Ceiling(remaining) + input.LamellaWidthLossMm));
                 lamellas.Add(new(piece.Board.Id, piece.Board.WoodType, piece.Board.ThicknessMm!.Value, length, width, piece.X, piece.Y, width - input.LamellaWidthLossMm, requirement.Id));
                 remaining -= width - input.LamellaWidthLossMm;
+                // Record the actual material removed, clipped at the board edge.
+                // The crosscut spans the original width, the rip only its section.
+                if (piece.Length > length)
+                    sawdust.Add(new(piece.Board, piece.Width, Math.Min(Kerf, piece.Length - length), piece.X, piece.Y + length));
+                if (piece.Width > width)
+                    sawdust.Add(new(piece.Board, Math.Min(Kerf, piece.Width - width), length, piece.X + width, piece.Y));
                 var restLength = piece.Length - length - Kerf;
                 if (restLength > 0)
                     pieces.Add(new(piece.Board, piece.Width, restLength, piece.X, piece.Y + length + Kerf));
@@ -115,8 +122,10 @@ public static class CuttingPlanner
         if (lamellas.Count == MaxLamellas) warnings.Add("Plán dosáhl limitu 20 000 lamel. Rozdělte zakázku na menší části.");
         var usedBoards = lamellas.Select(l => l.BoardId).ToHashSet();
         var offcuts = pieces.Concat(discarded).Where(p => usedBoards.Contains(p.Board.Id))
-            .OrderBy(p => p.Board.Id).ThenBy(p => p.Y).ThenBy(p => p.X)
-            .Select(p => new PlannedOffcut(p.Board.Id, p.Board.WoodType, p.Board.ThicknessMm!.Value, p.Length, p.Width, p.X, p.Y)).ToList();
+            .Select(p => new PlannedOffcut(p.Board.Id, p.Board.WoodType, p.Board.ThicknessMm!.Value, p.Length, p.Width, p.X, p.Y, false,
+                p.Width >= input.OffcutMinWidthMm && p.Length >= input.OffcutMinLengthMm))
+            .Concat(sawdust.Select(p => new PlannedOffcut(p.Board.Id, p.Board.WoodType, p.Board.ThicknessMm!.Value, p.Length, p.Width, p.X, p.Y, true, false)))
+            .OrderBy(p => p.BoardId).ThenBy(p => p.OffsetLengthMm).ThenBy(p => p.OffsetWidthMm).ToList();
         return new(shortages.Count == 0, Kerf, lamellas, shortages, warnings, panels, offcuts);
     }
 }
