@@ -9,6 +9,7 @@ type Board = {
 }
 const num = (value: number) => new Intl.NumberFormat('cs-CZ').format(value)
 const stageLabels = { original: 'Celá fošna', length: 'Zkrácený kus', width: 'Nařezaný kus' }
+const boardLengths = ['2000', '3000', '4000', '5000']
 
 async function stockApi<T>(path = '', body?: unknown): Promise<T> {
   const response = await fetch(`/api/stock/boards${path}`, body === undefined ? undefined : {
@@ -26,6 +27,7 @@ export function BoardStock({ catalog, onDirty }: { catalog: Catalog; onDirty: (d
   const [woodType, setWoodType] = useState('')
   const [width, setWidth] = useState('')
   const [length, setLength] = useState('3000')
+  const [savedDefaults, setSavedDefaults] = useState({ woodType: '', length: '3000' })
   const [thickness, setThickness] = useState(32)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -39,7 +41,7 @@ export function BoardStock({ catalog, onDirty }: { catalog: Catalog; onDirty: (d
   const [kerf, setKerf] = useState('3')
   const [cutError, setCutError] = useState('')
 
-  useEffect(() => { onDirty(!!woodType || !!width || length !== '3000' || thickness !== 32 || !!cutBoard) }, [woodType, width, length, thickness, cutBoard, onDirty])
+  useEffect(() => { onDirty(woodType !== savedDefaults.woodType || !!width || length !== savedDefaults.length || thickness !== 32 || !!cutBoard) }, [woodType, width, length, savedDefaults, thickness, cutBoard, onDirty])
   useEffect(() => {
     let active = true
     stockApi<Board[]>().then(data => { if (active) setBoards(data) }).catch(e => { if (active) setError(e.message) }).finally(() => { if (active) setLoading(false) })
@@ -60,7 +62,8 @@ export function BoardStock({ catalog, onDirty }: { catalog: Catalog; onDirty: (d
     event.preventDefault(); setBusy(true); setError(''); setNotice('')
     try {
       const board = await stockApi<Board>('', { woodType, widthMm: Number(width), lengthMm: Number(length), thicknessMm: thickness })
-      setBoards(prev => [board, ...prev]); setWoodType(''); setWidth(''); setLength('3000'); setThickness(32)
+      setBoards(prev => [board, ...prev]); setWidth(''); setThickness(32)
+      setSavedDefaults({ woodType, length })
       setNotice(`Fošna #${board.id} byla přidána do skladu.`)
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
@@ -109,7 +112,8 @@ export function BoardStock({ catalog, onDirty }: { catalog: Catalog; onDirty: (d
       <form onSubmit={add} className="stock-add">
         <label className="field"><span>Dřevina</span><input required maxLength={100} list="stock-wood-types" value={woodType} onChange={e => setWoodType(e.target.value)} placeholder="Např. Dub" disabled={busy}/><datalist id="stock-wood-types">{catalog.wood.map(w => <option key={w.name} value={w.name}/>)}</datalist></label>
         <label className="field"><span>Šířka (mm)</span><input required type="number" min="1" max="2147483647" step="1" value={width} onChange={e => setWidth(e.target.value)} placeholder="Např. 300" disabled={busy}/></label>
-        <label className="field"><span>Délka (mm)</span><input required type="number" min="1" max="2147483647" step="1" list="stock-board-lengths" value={length} onChange={e => setLength(e.target.value)} placeholder="Např. 2500" disabled={busy}/><datalist id="stock-board-lengths">{[3000, 4000, 5000].map(l => <option key={l} value={l}>{l / 1000} m</option>)}</datalist></label>
+        <label className="field"><span>Předvolená délka</span><select value={boardLengths.includes(length) ? length : ''} onChange={e => setLength(e.target.value)} disabled={busy}>{boardLengths.map(l => <option key={l} value={l}>{Number(l) / 1000} m</option>)}<option value="">Vlastní délka v mm</option></select></label>
+        <label className="field"><span>Délka (mm)</span><input required type="number" min="1" max="2147483647" step="1" value={length} onChange={e => setLength(e.target.value)} placeholder="Např. 2500" disabled={busy}/></label>
         <label className="field"><span>Tloušťka (mm)</span><input required type="number" min="1" step="1" value={thickness} onChange={e => setThickness(Number(e.target.value))} disabled={busy}/></label>
         <button className="primary" disabled={busy || loading || !woodType.trim() || !width}><Plus size={17}/>{busy && !cutBoard ? 'Ukládám…' : 'Přidat do skladu'}</button>
       </form>
