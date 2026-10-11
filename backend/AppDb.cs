@@ -93,6 +93,7 @@ public class ProjectDetails
     public int GlueBoardMaxWidthMm { get; set; } = 900;
     public int OffcutMinWidthMm { get; set; } = 50;
     public int OffcutMinLengthMm { get; set; } = 350;
+    public int TransportMaxLengthMm { get; set; } = 2700;
     public int ProjectId { get; set; }
     public decimal BudgetLimit { get; set; }
     public bool NonVatPayer { get; set; }
@@ -160,6 +161,7 @@ public class PricingDefaults
     public int GlueBoardMaxWidthMm { get; set; } = 900;
     public int OffcutMinWidthMm { get; set; } = 50;
     public int OffcutMinLengthMm { get; set; } = 350;
+    public int TransportMaxLengthMm { get; set; } = 2700;
     public int Id { get; set; } = 1;
     public decimal LamellaLengthExtraMm { get; set; } = 50m;
     public decimal LamellaMergeToleranceMm { get; set; } = 50m;

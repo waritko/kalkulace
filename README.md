@@ -59,6 +59,12 @@ Desetinné rozměry v milimetrech a procenta se ukládají na jedno desetinné m
 
 Při prvním spuštění této verze aplikace automaticky upraví existující MySQL sloupce a zaokrouhlí stávající hodnoty; v SQLite proběhne jednorázový převod v transakci. Převod zahrnuje také jednotlivé číselné hodnoty snímků faktur, ale faktury nepřepočítává ze zakázek. Uložené JSON snímky nářezových plánů zůstávají beze změny.
 
+## Převoz nákupních fošen
+
+Ve **Výpočtu dřeva** pod nákupním seznamem fošen najdete **Rozřezání nákupních fošen pro převoz**. Nastavte **Největší délka na vozík (mm)**, výchozí 2700 mm (2,7 m). Limit je v celých milimetrech, alespoň 21 mm, a ukládá se tlačítkem **Uložit** se zakázkou. Ve výchozích nastaveních lze změnit limit pro nové zakázky; starší zakázky dostanou 2700 mm.
+
+Tabulka uvádí pro každou nákupní délku lamely včetně přídavku doporučené délky kusů z fošen 3/4/5 m a počet délek lamely získaných z jedné fošny. Zachová největší možný počet délek lamely a poté použije nejméně přepravních řezů. Hrubé dělení pro převoz odečítá **20 mm na každý řez**, následné dělení lamel 3 mm; součet kusů a hrubého prořezu odpovídá původní fošně. Například pro lamelu 1600 mm a limit 2700 mm doporučí ze 4m fošny kusy **2380 + 1600 mm**. Pokud je lamela delší než vozík nebo nákupní fošna, zobrazí upozornění. Jednotlivé řádky jsou alternativy pro samostatné délky lamel, nikoli společný plán jejich kombinace; počet se týká délkového směru a nezahrnuje šířku fošny. Doporučení nemění cenu ani sklad a je součástí **Tisku lamel a dílců**.
+
 ## Sklad fošen
 
 V nabídce **Sklad fošen** se každý kus přijímá samostatně zadáním dřeviny, šířky, tloušťky a libovolné kladné délky v celých milimetrech. V poli **Předvolená délka** lze vybrat 2/3/4/5 m nebo **Vlastní délka v mm**. Pole **Délka (mm)** se při výběru předvolby doplní a lze do něj také přímo napsat vlastní délku, například 2755 mm. Po přidání fošny zůstává nastavena předchozí dřevina i délka pro další příjem; šířka se vyprázdní. Dřevinu lze vybrat z návrhů ceníku nebo zadat vlastní. Tloušťku dostupného kusu lze upravit přímo v tabulce; hodnota se uloží po opuštění pole. U starších kusů je tloušťka neznámá a je nutné ji doplnit před použitím v nářezovém plánu. Rozřezané kusy předávají tloušťku svým potomkům. Sklad se ukládá do databáze; při spuštění se doplní potřebná tabulka a sloupce i do existující databáze.

@@ -56,6 +56,8 @@ app.MapPut("/api/pricing-defaults", async (PricingDefaults defaults, AppDb db) =
 {
     if (!CuttingPlanner.ValidSettings(defaults.LamellaMinLengthMm, defaults.LamellaMinWidthMm, defaults.LamellaMaxWidthMm, defaults.LamellaWidthLossMm, defaults.GlueBoardMaxWidthMm, defaults.OffcutMinWidthMm, defaults.OffcutMinLengthMm))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["cuttingPlan"] = [CuttingPlanner.SettingsError] });
+    if (defaults.TransportMaxLengthMm < 21)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["transportMaxLengthMm"] = ["Délka pro převoz musí být celé milimetry a alespoň 21 mm."] });
     var values = new[] { defaults.WoodReservePercent, defaults.MaterialOverheadPercent, defaults.MaterialMarginPercent,
         defaults.LaborMarginPercent, defaults.ServiceMarginPercent, defaults.FinanceMarginPercent, defaults.DiscountPercent, defaults.GlueBoardWastePercent };
     if (defaults.Id != 1 || values.Any(value => value < 0 || value > 100))

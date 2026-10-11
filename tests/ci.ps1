@@ -81,6 +81,10 @@ try {
         & node (Join-Path $PSScriptRoot 'cutting-plan-smoke.cjs') $baseUrl
         if ($LASTEXITCODE -ne 0) { throw "cutting-plan-smoke.cjs exited with code $LASTEXITCODE" }
     })) { $failed++ }
+    if (-not (Invoke-Smoke 'Transport purchase cuts' {
+        & node (Join-Path $PSScriptRoot 'transport-smoke.cjs') $baseUrl
+        if ($LASTEXITCODE -ne 0) { throw "transport-smoke.cjs exited with code $LASTEXITCODE" }
+    })) { $failed++ }
     if (-not (Invoke-Smoke 'Daily entries' { & (Join-Path $PSScriptRoot 'daily-smoke.ps1') -BaseUrl $baseUrl })) { $failed++ }
     if (-not (Invoke-Smoke 'Finish calculation' {
         & node (Join-Path $PSScriptRoot 'finish-smoke.cjs') $baseUrl

@@ -69,6 +69,8 @@ await db.Database.ExecuteSqlRawAsync("UPDATE ProjectDetails SET BudgetLimit = '9
 await db.Database.ExecuteSqlRawAsync("UPDATE PricingDefaults SET WoodReservePercent = '7.85'");
 await db.Database.ExecuteSqlRawAsync("UPDATE CatalogWood SET Price32 = '1234.565'");
 await db.Database.ExecuteSqlRawAsync("UPDATE InvoiceCalculation SET BudgetDifference = '-12.345', BudgetUsagePercent = '51.25'");
+await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails DROP COLUMN TransportMaxLengthMm");
+await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults DROP COLUMN TransportMaxLengthMm");
 await DatabaseUpgrade.InitializeAsync(db);
 var loaded = await db.Projects.Include(p => p.Details).Include(p => p.WoodParts).Include(p => p.Lines).SingleAsync();
 Equal(1000m, loaded.Details.BudgetLimit, "upgraded budget");
@@ -81,6 +83,8 @@ Equal(21900.13m, loaded.WoodParts[0].PricePerM3, "upgraded wood price");
 Equal(2m, loaded.WoodParts[0].Quantity, "upgraded whole part quantity");
 Equal(0.123457m, loaded.Lines[0].Quantity, "upgraded recorded time");
 Equal(7.9m, (await db.PricingDefaults.SingleAsync()).WoodReservePercent, "upgraded defaults");
+Equal(2700, (await db.PricingDefaults.SingleAsync()).TransportMaxLengthMm, "upgraded transport defaults");
+Equal(2700, (await db.Set<ProjectDetails>().SingleAsync()).TransportMaxLengthMm, "upgraded project transport limit");
 Equal(1234.57m, (await db.Set<CatalogWood>().SingleAsync()).Price32, "upgraded catalog");
 var savedInvoice = await db.Invoices.Include(i => i.Calculation).Include(i => i.Lines).Include(i => i.Vat).SingleAsync();
 Equal(-12.35m, savedInvoice.Calculation.BudgetDifference, "upgraded negative currency");

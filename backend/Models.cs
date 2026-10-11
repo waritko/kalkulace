@@ -2,7 +2,7 @@ namespace Kalkulace.Api;
 
 public record WoodPart(string Name, string WoodType, decimal WidthMm, decimal LengthMm, decimal ThicknessMm, decimal Quantity, decimal PricePerM3, string? Finish, bool ApplyFinish = false, string? PartId = null, bool IsProduced = false);
 public record CostLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false, string? AutomaticMachineryCharge = null, string? MaterialType = null, bool AutomaticFinish = false, DateOnly? WorkDate = null);
-public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines, decimal LamellaLengthExtraMm = 50m, decimal LamellaMergeToleranceMm = 50m, decimal GlueBoardWastePercent = 10m, int LamellaMinLengthMm = 350, int LamellaMinWidthMm = 50, int LamellaMaxWidthMm = 110, int LamellaWidthLossMm = 4, int GlueBoardMaxWidthMm = 900, int OffcutMinWidthMm = 50, int OffcutMinLengthMm = 350);
+public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines, decimal LamellaLengthExtraMm = 50m, decimal LamellaMergeToleranceMm = 50m, decimal GlueBoardWastePercent = 10m, int LamellaMinLengthMm = 350, int LamellaMinWidthMm = 50, int LamellaMaxWidthMm = 110, int LamellaWidthLossMm = 4, int GlueBoardMaxWidthMm = 900, int OffcutMinWidthMm = 50, int OffcutMinLengthMm = 350, int TransportMaxLengthMm = 2700);
 public record ProjectListItem(int Id, string Name, string CustomerName, DateTimeOffset UpdatedAt);
 public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, DateTimeOffset UpdatedAt)
 {
@@ -15,7 +15,11 @@ public record ProjectResponse(int Id, ProjectInput Input, Calculation Result, Da
 public record CalculatedLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, decimal Cost, int VatRate, decimal AreaM2, decimal VolumeM3, decimal? BoardThicknessMm, DateOnly? WorkDate = null);
 public record VatSummary(int Rate, decimal Base, decimal Vat, decimal Total);
 public record WoodPurchaseItem(string WoodType, decimal BoardThicknessMm, decimal AreaM2, decimal VolumeM3, decimal Width3mCm, decimal Width4mCm);
-public record GlueBoardPurchaseItem(string WoodType, decimal BoardThicknessMm, decimal LamellaLengthMm, decimal TotalWidthMm);
+public record TransportCut(int BoardLengthMm, List<int> PieceLengthsMm, int LamellaCount, string? Warning);
+public record GlueBoardPurchaseItem(string WoodType, decimal BoardThicknessMm, decimal LamellaLengthMm, decimal TotalWidthMm)
+{
+    public List<TransportCut> TransportCuts { get; init; } = [];
+}
 public record Calculation(List<CalculatedLine> Lines, decimal MaterialCost, decimal LaborCost, decimal ServiceCost, decimal FinanceCost, decimal WoodCost, decimal WoodVolumeM3, decimal Overhead, decimal Profit, decimal TotalCost, decimal TotalWithoutVat, decimal TotalVat, decimal TotalWithVat, decimal BudgetDifference, decimal BudgetUsagePercent, List<VatSummary> Vat)
 {
     public List<WoodPurchaseItem> WoodPurchase { get; init; } = [];
@@ -34,6 +38,7 @@ public static class Validator
     public static Dictionary<string, string[]> Validate(ProjectInput input)
     {
         var errors = new Dictionary<string, string[]>();
+        if (input.TransportMaxLengthMm < 21) errors["transportMaxLengthMm"] = ["Délka pro převoz musí být celé milimetry a alespoň 21 mm."];
         if (!CuttingPlanner.ValidSettings(input.LamellaMinLengthMm, input.LamellaMinWidthMm, input.LamellaMaxWidthMm, input.LamellaWidthLossMm, input.GlueBoardMaxWidthMm, input.OffcutMinWidthMm, input.OffcutMinLengthMm))
             errors["cuttingPlan"] = [CuttingPlanner.SettingsError];
         if (string.IsNullOrWhiteSpace(input.Name)) errors["name"] = ["Zadejte název zakázky."];
@@ -80,7 +85,8 @@ public static class Calculator
         }
         var rawWidths = glueBoardPurchase.ToDictionary(item => (item.WoodType, item.BoardThicknessMm, item.LamellaLengthMm), item => item.TotalWidthMm);
         glueBoardPurchase = glueBoardPurchase
-            .Select(item => item with { TotalWidthMm = Math.Ceiling(item.TotalWidthMm * (1 + input.GlueBoardWastePercent / 100m)) })
+            .Select(item => item with { TotalWidthMm = Math.Ceiling(item.TotalWidthMm * (1 + input.GlueBoardWastePercent / 100m)),
+                TransportCuts = TransportCutting.Recommend(item.LamellaLengthMm, input.TransportMaxLengthMm) })
             .OrderBy(item => item.WoodType, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(item => item.BoardThicknessMm)
             .ThenByDescending(item => item.LamellaLengthMm)

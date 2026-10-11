@@ -260,7 +260,7 @@ public static class DatabaseUpgrade
         foreach (var table in new[] { "ProjectDetails", "PricingDefaults" })
         {
             if (!await HasTable(db, table)) continue;
-            foreach (var (column, value) in new[] { ("LamellaMinLengthMm", 350), ("LamellaMinWidthMm", 50), ("LamellaMaxWidthMm", 110), ("LamellaWidthLossMm", 4), ("GlueBoardMaxWidthMm", 900), ("OffcutMinWidthMm", 50), ("OffcutMinLengthMm", 350) })
+            foreach (var (column, value) in new[] { ("LamellaMinLengthMm", 350), ("LamellaMinWidthMm", 50), ("LamellaMaxWidthMm", 110), ("LamellaWidthLossMm", 4), ("GlueBoardMaxWidthMm", 900), ("OffcutMinWidthMm", 50), ("OffcutMinLengthMm", 350), ("TransportMaxLengthMm", 2700) })
                 if (!await HasColumn(db, table, column))
                 {
                     // Identifiers and defaults come exclusively from the constants above.

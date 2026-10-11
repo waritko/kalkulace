@@ -1,4 +1,5 @@
 import { Printer } from 'lucide-react'
+import { TransportCutsTable } from './TransportPurchase'
 import type { Calculation, ProjectInput } from './types'
 
 const num = (value: number) => new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 2 }).format(value)
@@ -25,6 +26,9 @@ export function GlueBoardPurchase({ input, result, update, onPrint, printWorksho
       <h2>Lamely pro spárovku</h2>
       <table><thead><tr><th>Dřevina</th><th>Tloušťka fošny</th><th>Délka lamely</th><th>Celková šířka s prořezem</th></tr></thead><tbody>{result.glueBoardPurchase.map(item => <tr key={`${item.woodType}-${item.boardThicknessMm}-${item.lamellaLengthMm}`}><td>{item.woodType}</td><td>{num(item.boardThicknessMm)} mm</td><td>{num(item.lamellaLengthMm)} mm</td><td>{num(item.totalWidthMm)} mm</td></tr>)}</tbody></table>
       <p className="workshop-print-note">Přídavek k délce: {num(input.lamellaLengthExtraMm)} mm · Sloučení délek: {num(input.lamellaMergeToleranceMm)} mm · Prořez: {num(input.glueBoardWastePercent)} %</p>
+      <h2>Rozřezání fošen pro převoz</h2>
+      <p>Největší délka na vozík: {num(input.transportMaxLengthMm)} mm · Hrubý řez: 20 mm · Řezání lamel: 3 mm. Každý řádek je samostatná alternativa pro uvedenou délku lamely.</p>
+      <TransportCutsTable result={result}/>
       <h2>Dílce</h2>
       <table><thead><tr><th>Název dílce</th><th>Dřevina</th><th>Šířka</th><th>Délka</th><th>Tloušťka</th><th>Počet</th></tr></thead><tbody>{input.woodParts.map((part, index) => <tr key={index}><td>{part.name}</td><td>{part.woodType}</td><td>{num(part.widthMm)} mm</td><td>{num(part.lengthMm)} mm</td><td>{num(part.thicknessMm)} mm</td><td>{num(part.quantity)} ks</td></tr>)}</tbody></table>
     </article>}
