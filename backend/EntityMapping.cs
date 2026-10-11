@@ -9,7 +9,7 @@ public static class EntityMapping
             d.MaterialOverheadPercent, d.MaterialMarginPercent, d.LaborMarginPercent, d.ServiceMarginPercent,
             d.FinanceMarginPercent, d.DiscountPercent,
             project.WoodParts.OrderBy(p => p.Position).Select(p => new WoodPart(p.Name, p.WoodType, p.WidthMm,
-                p.LengthMm, p.ThicknessMm, p.Quantity, p.PricePerM3, p.Finish, p.ApplyFinish)).ToList(),
+                p.LengthMm, p.ThicknessMm, p.Quantity, p.PricePerM3, p.Finish, p.ApplyFinish, p.PartId, p.IsProduced)).ToList(),
             project.Lines.OrderBy(l => l.Position).Select(l => new CostLine(l.Name, l.Category, l.Unit, l.Quantity,
                 l.UnitPrice, l.VatRate, l.ServiceCategory, l.UsesExtraction, l.UsesVacuum, l.AutomaticMachineryCharge, l.MaterialType, l.AutomaticFinish, l.WorkDate)).ToList(),
             d.LamellaLengthExtraMm, d.LamellaMergeToleranceMm, d.GlueBoardWastePercent,
@@ -44,7 +44,7 @@ public static class EntityMapping
         {
             ProjectId = project.Id, Position = n, Name = p.Name, WoodType = p.WoodType, WidthMm = p.WidthMm,
             LengthMm = p.LengthMm, ThicknessMm = p.ThicknessMm, Quantity = p.Quantity, PricePerM3 = p.PricePerM3,
-            Finish = p.Finish, ApplyFinish = p.ApplyFinish
+            Finish = p.Finish, ApplyFinish = p.ApplyFinish, PartId = p.PartId ?? Guid.NewGuid().ToString(), IsProduced = p.IsProduced
         }).ToList();
         project.Lines = input.Lines.Select((l, n) => new ProjectCostLine
         {

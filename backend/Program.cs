@@ -100,6 +100,8 @@ app.MapPost("/api/projects", async (ProjectInput input, AppDb db) =>
     if (errors.Count > 0) return Results.ValidationProblem(errors);
     var catalog = await LoadCatalog(db);
     input = FinishCharges.Sync(MachineryCharges.Sync(input, catalog), catalog);
+    if (input.WoodParts.Any(p => p.IsProduced))
+        return Results.BadRequest(new { error = "Vyrobené dílce označuje pouze uložení nářezového plánu." });
     var project = new Project { UpdatedAt = DateTimeOffset.UtcNow };
     project.SetInput(input);
     db.Projects.Add(project);
@@ -119,7 +121,15 @@ app.MapPut("/api/projects/{id:int}", async (int id, ProjectInput input, AppDb db
     input = FinishCharges.Sync(MachineryCharges.Sync(input, catalog), catalog);
     var project = await LoadProject(db, id);
     if (project is null) return Results.NotFound();
+    var storedParts = project.ToInput().WoodParts;
+    if (storedParts.Where(p => p.IsProduced).Any(p => !input.WoodParts.Contains(p))
+        || input.WoodParts.Where(p => p.IsProduced).Any(p => !storedParts.Contains(p)))
+        return Results.Conflict(new { error = "Vyrobené dílce nelze upravit, odebrat ani změnit jejich stav. Načtěte aktuální zakázku." });
     await using var transaction = await db.Database.BeginTransactionAsync();
+    // Claim the project before replacing its children; plan saving uses the same concurrency token.
+    project.UpdatedAt = DateTimeOffset.UtcNow;
+    try { await db.SaveChangesAsync(); }
+    catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Zakázka se mezitím změnila. Načtěte ji znovu." }); }
     db.RemoveRange(project.WoodParts);
     db.RemoveRange(project.Lines);
     await db.SaveChangesAsync();

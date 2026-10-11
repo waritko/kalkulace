@@ -15,7 +15,8 @@ const newSaveId = () => {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
-export function CuttingPlan({ projectId, input, update }: {
+export function CuttingPlan({ projectId, input, update, onProduced }: {
+  onProduced: (parts: ProjectInput['woodParts']) => void
   projectId: number | null
   input: ProjectInput
   update: <K extends keyof ProjectInput>(key: K, value: ProjectInput[K]) => void
@@ -30,7 +31,9 @@ export function CuttingPlan({ projectId, input, update }: {
   const saveLock = useRef(false)
   const saveId = useRef('')
   const generation = useRef(0)
-  useEffect(() => { generation.current++; setPlan(null); setSelected(null); setError(''); setBusy(false) }, [input])
+  // Updating production flags after saving must preserve the saved plan for viewing and printing.
+  const planInputKey = JSON.stringify({ ...input, woodParts: input.woodParts.map(part => ({ ...part, isProduced: false })) })
+  useEffect(() => { generation.current++; setPlan(null); setSelected(null); setError(''); setBusy(false) }, [planInputKey])
   useEffect(() => {
     if (projectId === null) return
     let cancelled = false
@@ -73,18 +76,21 @@ export function CuttingPlan({ projectId, input, update }: {
       if (!response.ok) throw new Error(data.error || Object.values(data.errors || {}).flat().join(' ') || 'Plán se nepodařilo uložit.')
       const saved = data as SavedCuttingPlan
       setSavedPlans(plans => [saved, ...plans.filter(p => p.id !== saved.id)])
+      const indices = new Set(saved.plan.panels.flatMap(panel => panel.parts.map(part => part.partIndex)))
+      onProduced(saved.input.woodParts.map((part, index) => indices.has(index) ? { ...part, isProduced: true } : part))
       if (request === generation.current) { setSelected(saved); setPlan(saved.plan) }
     } catch (e) { setError((e as Error).message) }
     finally { saveLock.current = false; setSaving(false) }
   }
   return <section className="panel form-panel">
-    <div className="section-title cutting-plan-actions"><div><h2>Nářezový plán ze skladu</h2><p>Lamely z dostupných fošen a zbytků podle dřeviny a tloušťky</p></div><div className="heading-actions"><button type="button" className="secondary" disabled={busy || saving || !input.woodParts.length} onClick={create}><Scissors size={17}/>{busy ? 'Připravuji…' : 'Vytvořit nářezový plán'}</button><button type="button" disabled={busy || saving || !plan?.complete || !plan.lamellas.length || !!selected || projectId === null} onClick={save}><Save size={17}/>{saving ? 'Ukládám…' : 'Uložit plán a odečíst sklad'}</button><button type="button" className="secondary" disabled={!plan || busy || printing || saving} onClick={() => setPrinting(true)}><Printer size={17}/> Tisk nářezového plánu</button></div></div>
+    <div className="section-title cutting-plan-actions"><div><h2>Nářezový plán ze skladu</h2><p>Lamely z dostupných fošen a zbytků podle dřeviny a tloušťky</p></div><div className="heading-actions"><button type="button" className="secondary" disabled={busy || saving || !input.woodParts.some(part => !part.isProduced)} onClick={create}><Scissors size={17}/>{busy ? 'Připravuji…' : 'Vytvořit nářezový plán'}</button><button type="button" disabled={busy || saving || !plan?.complete || !plan.lamellas.length || !!selected || projectId === null} onClick={save}><Save size={17}/>{saving ? 'Ukládám…' : 'Uložit plán a odečíst sklad'}</button><button type="button" className="secondary" disabled={!plan || busy || printing || saving} onClick={() => setPrinting(true)}><Printer size={17}/> Tisk nářezového plánu</button></div></div>
+    {!input.woodParts.some(part => !part.isProduced) && input.woodParts.length > 0 && <p className="info-strip">Všechny dílce jsou vyrobené. Pro další plán přidejte nové dílce.</p>}
     {projectId === null && <p className="info-strip">Před uložením nářezového plánu nejprve uložte zakázku.</p>}
     {!!savedPlans.length && <label className="field"><span>Uložené nářezové plány</span><select disabled={busy || saving} value={selected?.id ?? ''} onChange={e => {
       const saved = savedPlans.find(p => p.id === e.target.value) ?? null
       generation.current++; setSelected(saved); setPlan(saved?.plan ?? null); setError('')
     }}><option value="">Vyberte uložený plán</option>{savedPlans.map(p => <option key={p.id} value={p.id}>{new Date(p.savedAt).toLocaleString('cs-CZ')} – {p.input.name} ({p.plan.lamellas.length} lamel)</option>)}</select></label>}
-    {selected && <div className="alert success" role="status">Plán uložen {new Date(selected.savedAt).toLocaleString('cs-CZ')}. Použité fošny byly odečteny a použitelné zbytky přijaty do skladu. Zobrazení a tisk používají uložené zadání.</div>}
+    {selected && <div className="alert success" role="status">Plán uložen {new Date(selected.savedAt).toLocaleString('cs-CZ')}. Dílce byly označeny jako vyrobené a uzamčeny. Použité fošny byly odečteny a použitelné zbytky přijaty do skladu. Zobrazení a tisk používají uložené zadání.</div>}
     <div className="pricing-grid">
       {([
         ['glueBoardMaxWidthMm', 'Největší šířka spárovky pro spojení dílců (mm)'],

@@ -1,6 +1,6 @@
 namespace Kalkulace.Api;
 
-public record WoodPart(string Name, string WoodType, decimal WidthMm, decimal LengthMm, decimal ThicknessMm, decimal Quantity, decimal PricePerM3, string? Finish, bool ApplyFinish = false);
+public record WoodPart(string Name, string WoodType, decimal WidthMm, decimal LengthMm, decimal ThicknessMm, decimal Quantity, decimal PricePerM3, string? Finish, bool ApplyFinish = false, string? PartId = null, bool IsProduced = false);
 public record CostLine(string Name, string Category, string Unit, decimal Quantity, decimal UnitPrice, int VatRate, string? ServiceCategory = null, bool UsesExtraction = false, bool UsesVacuum = false, string? AutomaticMachineryCharge = null, string? MaterialType = null, bool AutomaticFinish = false, DateOnly? WorkDate = null);
 public record ProjectInput(string Name, string? CustomerName, decimal BudgetLimit, bool NonVatPayer, decimal WoodReservePercent, decimal MaterialOverheadPercent, decimal MaterialMarginPercent, decimal LaborMarginPercent, decimal ServiceMarginPercent, decimal FinanceMarginPercent, decimal DiscountPercent, List<WoodPart> WoodParts, List<CostLine> Lines, decimal LamellaLengthExtraMm = 50m, decimal LamellaMergeToleranceMm = 50m, decimal GlueBoardWastePercent = 10m, int LamellaMinLengthMm = 350, int LamellaMinWidthMm = 50, int LamellaMaxWidthMm = 110, int LamellaWidthLossMm = 4, int GlueBoardMaxWidthMm = 900, int OffcutMinWidthMm = 50, int OffcutMinLengthMm = 350);
 public record ProjectListItem(int Id, string Name, string CustomerName, DateTimeOffset UpdatedAt);
@@ -39,6 +39,10 @@ public static class Validator
         if (string.IsNullOrWhiteSpace(input.Name)) errors["name"] = ["Zadejte název zakázky."];
         if (input.WoodParts is null || input.Lines is null) errors["lines"] = ["Položky musí být zadány jako seznam."];
         if (input.WoodParts?.Count > 500 || input.Lines?.Count > 1000) errors["lines"] = ["Příliš mnoho položek."];
+        if (input.WoodParts?.Any(p => p.PartId is not null && !Guid.TryParseExact(p.PartId, "D", out _)) == true)
+            errors["woodParts"] = ["Neplatný identifikátor dílce."];
+        if (input.WoodParts is not null && input.WoodParts.Where(p => p.PartId is not null).Select(p => p.PartId).Distinct().Count() != input.WoodParts.Count(p => p.PartId is not null))
+            errors["woodParts"] = ["Identifikátory dílců musí být jedinečné."];
         if (input.BudgetLimit < 0) errors["budgetLimit"] = ["Finanční limit musí být nezáporný."];
         var percents = new[] { input.WoodReservePercent, input.MaterialOverheadPercent, input.MaterialMarginPercent, input.LaborMarginPercent, input.ServiceMarginPercent, input.FinanceMarginPercent, input.DiscountPercent };
         if (percents.Any(p => p < 0 || p > 100)) errors["percent"] = ["Procenta musí být v rozsahu 0–100."];

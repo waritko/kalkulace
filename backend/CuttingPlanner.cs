@@ -21,9 +21,9 @@ public static class CuttingPlanner
     // Stack short parts into columns, then join columns side by side.
     private static List<PlannedPanel>? BuildPanels(ProjectInput input)
     {
-        if (input.WoodParts.Sum(p => Math.Ceiling(p.Quantity)) > MaxLamellas) return null;
+        if (input.WoodParts.Where(p => !p.IsProduced).Sum(p => Math.Ceiling(p.Quantity)) > MaxLamellas) return null;
         var panels = new List<PlannedPanel>();
-        foreach (var group in input.WoodParts.Select((part, index) => (part, index))
+        foreach (var group in input.WoodParts.Select((part, index) => (part, index)).Where(e => !e.part.IsProduced)
             .GroupBy(e => (Wood: e.part.WoodType.Trim().ToUpperInvariant(), Thickness: e.part.ThicknessMm < 29 ? 32m : 50m)))
         {
             var columns = new List<PlannedPanel>();
@@ -79,7 +79,7 @@ public static class CuttingPlanner
         var shortages = new List<CuttingShortage>();
         var warnings = new List<string>();
         if (panels.Any(p => p.WidthMm > input.GlueBoardMaxWidthMm)) warnings.Add("Samostatný dílec je širší než nastavená šířka spárovky; plán jej ponechává samostatně v požadované šířce.");
-        if (input.WoodParts.Any(p => p.Quantity != Math.Ceiling(p.Quantity))) warnings.Add("Necelé počty dílců jsou pro nářez zaokrouhleny nahoru na celé kusy.");
+        if (input.WoodParts.Any(p => !p.IsProduced && p.Quantity != Math.Ceiling(p.Quantity))) warnings.Add("Necelé počty dílců jsou pro nářez zaokrouhleny nahoru na celé kusy.");
         var unknown = stock.Count(b => !b.IsCut && b.ThicknessMm is null);
         if (unknown > 0) warnings.Add($"U {unknown} dostupných kusů není zadána tloušťka. Doplňte ji ve skladu; tyto kusy nebyly použity.");
 

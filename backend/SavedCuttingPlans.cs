@@ -43,10 +43,14 @@ public static class SavedCuttingPlans
                 return existing.ProjectId == request.ProjectId && existing.InputJson == inputJson && existing.PlanJson == planJson
                     ? Results.Ok(Response(existing))
                     : Results.Conflict(new { error = "Tento identifikátor již patří jinému plánu." });
-            if (!await db.Projects.AnyAsync(p => p.Id == request.ProjectId))
+            var project = await db.Projects.Include(p => p.Details).Include(p => p.WoodParts).Include(p => p.Lines)
+                .SingleOrDefaultAsync(p => p.Id == request.ProjectId);
+            if (project is null)
                 return Results.BadRequest(new { error = "Nejprve uložte zakázku." });
             if (request.Plan.Lamellas is null || request.Plan.Offcuts is null || !request.Plan.Complete || request.Plan.Lamellas.Count == 0)
                 return Results.BadRequest(new { error = "Uložit lze pouze kompletní plán s použitým materiálem." });
+            if (!project.ToInput().WoodParts.SequenceEqual(request.Input.WoodParts))
+                return Results.Conflict(new { error = "Dílce se liší od uložené zakázky. Uložte změny a vytvořte nový plán." });
             var boardIds = request.Plan.Lamellas.Select(l => l.BoardId).Distinct().ToArray();
             var boards = await db.StockBoards.Where(b => boardIds.Contains(b.Id)).OrderBy(b => b.Id).ToListAsync();
             if (boards.Count != boardIds.Length || boards.Any(b => b.IsCut))
@@ -58,6 +62,10 @@ public static class SavedCuttingPlans
                 || !Same(verified.Panels, request.Plan.Panels) || !Same(verified.Offcuts, request.Plan.Offcuts)
                 || !Same(verified.Shortages, request.Plan.Shortages))
                 return Results.Conflict(new { error = "Plán neodpovídá zadání nebo aktuálnímu skladu. Vytvořte nový plán." });
+            var producedIndices = verified.Panels.SelectMany(p => p.Parts).Select(p => p.PartIndex).Distinct().ToArray();
+            foreach (var index in producedIndices)
+                project.WoodParts.Single(p => p.PartId == request.Input.WoodParts[index].PartId).IsProduced = true;
+            project.UpdatedAt = DateTimeOffset.UtcNow;
             foreach (var board in boards)
             {
                 board.IsCut = true;

@@ -22,6 +22,9 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         modelBuilder.Entity<Project>().HasOne(p => p.Details).WithOne().HasForeignKey<ProjectDetails>(d => d.ProjectId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Project>().HasMany(p => p.WoodParts).WithOne().HasForeignKey(p => p.ProjectId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Project>().HasMany(p => p.Lines).WithOne().HasForeignKey(p => p.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Project>().Property(p => p.UpdatedAt).IsConcurrencyToken();
+        modelBuilder.Entity<ProjectWoodPart>().Property(p => p.PartId).HasMaxLength(36);
+        modelBuilder.Entity<ProjectWoodPart>().Property(p => p.IsProduced).IsConcurrencyToken();
         modelBuilder.Entity<ProjectWoodPart>().HasKey(p => new { p.ProjectId, p.Position });
         modelBuilder.Entity<ProjectCostLine>().HasKey(p => new { p.ProjectId, p.Position });
 
@@ -78,6 +81,8 @@ public class ProjectDetails
 
 public class ProjectWoodPart
 {
+    public string? PartId { get; set; }
+    public bool IsProduced { get; set; }
     public int ProjectId { get; set; }
     public int Position { get; set; }
     public string Name { get; set; } = "";

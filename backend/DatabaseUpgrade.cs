@@ -40,6 +40,7 @@ public static class DatabaseUpgrade
         await AddGlueBoardColumns(db);
         await AddCuttingPlanColumns(db);
         await AddWorkDateColumns(db);
+        await AddProductionColumns(db);
         var projectPayload = await HasColumn(db, "Projects", "Payload");
         var invoiceSnapshot = await HasColumn(db, "Invoices", "Snapshot");
         var catalogExists = await HasTable(db, "CatalogSettings");
@@ -61,6 +62,7 @@ public static class DatabaseUpgrade
         await AddGlueBoardColumns(db);
         await AddCuttingPlanColumns(db);
         await AddWorkDateColumns(db);
+        await AddProductionColumns(db);
 
         var projects = projectPayload ? await ReadLegacy(db, "SELECT Id, Payload FROM Projects") : [];
         var invoices = invoiceSnapshot ? await ReadLegacy(db, "SELECT Id, Snapshot FROM Invoices") : [];
@@ -96,6 +98,20 @@ public static class DatabaseUpgrade
         if (projectPayload) await db.Database.ExecuteSqlRawAsync("ALTER TABLE Projects DROP COLUMN Payload");
         if (invoiceSnapshot) await db.Database.ExecuteSqlRawAsync("ALTER TABLE Invoices DROP COLUMN Snapshot");
         if (catalogExists) await db.Database.ExecuteSqlRawAsync("DROP TABLE CatalogSettings");
+    }
+
+    private static async Task AddProductionColumns(AppDb db)
+    {
+        if (!await HasTable(db, "ProjectWoodPart")) return;
+        if (!await HasColumn(db, "ProjectWoodPart", "PartId"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectWoodPart ADD COLUMN PartId varchar(36) NULL");
+        if (!await HasColumn(db, "ProjectWoodPart", "IsProduced"))
+            await db.Database.ExecuteSqlRawAsync(db.Database.IsSqlite()
+                ? "ALTER TABLE ProjectWoodPart ADD COLUMN IsProduced INTEGER NOT NULL DEFAULT 0"
+                : "ALTER TABLE ProjectWoodPart ADD COLUMN IsProduced tinyint(1) NOT NULL DEFAULT 0");
+        var parts = await db.Set<ProjectWoodPart>().Where(p => p.PartId == null).ToListAsync();
+        foreach (var part in parts) part.PartId = Guid.NewGuid().ToString();
+        await db.SaveChangesAsync();
     }
 
     private static async Task AddMaterialTypeColumns(AppDb db)

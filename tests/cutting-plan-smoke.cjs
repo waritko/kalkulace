@@ -175,13 +175,16 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   const source = await api('/stock/boards', { woodType: saveInput.woodParts[0].woodType, widthMm: 400, lengthMm: 3000, thicknessMm: 32 }, 201)
   const unused = await api('/stock/boards', { woodType: saveInput.woodParts[0].woodType, widthMm: 400, lengthMm: 5000, thicknessMm: 32 }, 201)
   const saveProject = await api('/projects', saveInput, 201)
+  saveInput.woodParts = saveProject.input.woodParts
   const preview = await api('/cutting-plan', saveInput)
   const request = { id: require('node:crypto').randomUUID(), projectId: saveProject.id, input: saveInput, plan: preview }
   const stockBeforeSave = await api('/stock/boards')
+  assert.ok((await api('/projects/' + saveProject.id)).input.woodParts.every(p => !p.isProduced), 'Preview does not mark production')
   const tampered = structuredClone(request)
   tampered.plan.offcuts.find(p => p.keepInStock).widthMm++
   await api('/cutting-plans', tampered, 409)
   assert.deepEqual(await api('/stock/boards'), stockBeforeSave)
+  assert.ok((await api('/projects/' + saveProject.id)).input.woodParts.every(p => !p.isProduced), 'Rejected plan does not mark production')
   await api('/cutting-plans', { ...request, plan: { ...preview, complete: false } }, 400)
   await api('/cutting-plans', { ...request, projectId: 2147483647 }, 400)
   const saved = await api('/cutting-plans', request)
@@ -201,12 +204,29 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   assert.deepEqual(await api('/cutting-plans', request), saved, 'Retry returns the same snapshot')
   await api('/cutting-plans', { ...request, id: require('node:crypto').randomUUID() }, 409)
   assert.deepEqual(await api('/stock/boards'), afterSave, 'Retry or duplicate cannot consume stock twice')
-  await api(`/projects/${saveProject.id}`, { ...saveInput, name: 'Změněná zakázka', woodParts: [] }, 200, 'PUT')
-  assert.deepEqual(await api(`/projects/${saveProject.id}/cutting-plans`), [saved], 'Saved snapshot survives edits')
+  const produced = (await api('/projects/' + saveProject.id)).input
+  assert.ok(produced.woodParts.every(p => p.isProduced && p.partId))
+  assert.deepEqual(await api('/calculate', produced), await api('/calculate', saveInput), 'Production status does not change pricing')
+  assert.equal((await api('/cutting-plan', produced)).panels.length, 0)
+  for (const patch of [{ name: 'Změna' }, { quantity: 2 }, { isProduced: false }, { partId: undefined }]) {
+    await api('/projects/' + saveProject.id, { ...produced, woodParts: [{ ...produced.woodParts[0], ...patch }] }, 409, 'PUT')
+  }
+  await api('/projects/' + saveProject.id, { ...produced, woodParts: [] }, 409, 'PUT')
+  await api('/projects/' + saveProject.id, { ...produced, woodParts: [produced.woodParts[0], produced.woodParts[0]] }, 400, 'PUT')
+  await api('/projects/' + saveProject.id, { ...saveInput, name: 'Změněná zakázka' }, 409, 'PUT')
+  const next = await api('/projects/' + saveProject.id, { ...produced, name: 'Změněná zakázka', woodParts: [{ ...saveInput.woodParts[0], name: 'Nový dílec', partId: undefined, isProduced: false }, ...produced.woodParts] }, 200, 'PUT')
+  const nextPlan = await api('/cutting-plan', next.input)
+  assert.ok(nextPlan.complete)
+  assert.ok(nextPlan.panels.flatMap(p => p.parts).every(p => p.partIndex === 0 && p.name === 'Nový dílec'))
+  const nextSaved = await api('/cutting-plans', { id: require('node:crypto').randomUUID(), projectId: saveProject.id, input: next.input, plan: nextPlan })
+  assert.ok((await api('/projects/' + saveProject.id)).input.woodParts.every(p => p.isProduced))
+  await api('/cutting-plans', { ...request, id: require('node:crypto').randomUUID() }, 409)
+  assert.deepEqual(await api(`/projects/${saveProject.id}/cutting-plans`), [nextSaved, saved], 'Saved snapshot survives edits')
   // A thickness change or manual cut between preview and save rejects the entire operation.
   const staleInput = project(`${wood}-stale`)
   const staleBoard = await api('/stock/boards', { woodType: staleInput.woodParts[0].woodType, widthMm: 400, lengthMm: 3000, thicknessMm: 32 }, 201)
   const staleProject = await api('/projects', staleInput, 201)
+  staleInput.woodParts = staleProject.input.woodParts
   const staleRequest = { id: require('node:crypto').randomUUID(), projectId: staleProject.id, input: staleInput, plan: await api('/cutting-plan', staleInput) }
   await api(`/stock/boards/${staleBoard.id}/thickness`, { thicknessMm: 50 })
   const staleStock = await api('/stock/boards')
@@ -219,6 +239,7 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   const raceBoards = []
   for (let i = 0; i < 2; i++) raceBoards.push(await api('/stock/boards', { woodType: raceInput.woodParts[0].woodType, widthMm: 120, lengthMm: 550, thicknessMm: 32 }, 201))
   const raceProject = await api('/projects', raceInput, 201)
+  raceInput.woodParts = raceProject.input.woodParts
   const racePlan = await api('/cutting-plan', raceInput)
   assert.equal(new Set(racePlan.lamellas.map(l => l.boardId)).size, 2)
   const attempts = await Promise.all([0, 1].map(() => fetch(`${base}/cutting-plans`, {

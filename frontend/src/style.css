@@ -29,3 +29,5 @@
   .cutting-print-sheet tr{break-inside:avoid}
   .cutting-print-widths{break-before:page}
 }
+
+.produced-label { display: block; color: #237347; white-space: nowrap; margin-top: 4px; }
