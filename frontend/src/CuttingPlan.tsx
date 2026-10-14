@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Printer, Save, Scissors } from 'lucide-react'
@@ -37,7 +38,7 @@ export function CuttingPlan({ projectId, input, update, onProduced }: {
   useEffect(() => {
     if (projectId === null) return
     let cancelled = false
-    fetch(`/api/projects/${projectId}/cutting-plans`).then(async response => {
+    apiFetch(`/api/projects/${projectId}/cutting-plans`).then(async response => {
       if (!response.ok) throw new Error('Uložené plány se nepodařilo načíst.')
       return response.json() as Promise<SavedCuttingPlan[]>
     }).then(plans => { if (!cancelled) setSavedPlans(current => [...current, ...plans.filter(p => !current.some(c => c.id === p.id))]) }).catch(e => { if (!cancelled) setError(e.message) })
@@ -57,7 +58,7 @@ export function CuttingPlan({ projectId, input, update, onProduced }: {
     const request = ++generation.current
     setBusy(true); setError(''); setPlan(null); setSelected(null)
     try {
-      const response = await fetch('/api/cutting-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+      const response = await apiFetch('/api/cutting-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || Object.values(data.errors || {}).flat().join(' ') || 'Nářezový plán se nepodařilo vytvořit.')
       if (request === generation.current) { setPlan(data); saveId.current = newSaveId() }
@@ -71,7 +72,7 @@ export function CuttingPlan({ projectId, input, update, onProduced }: {
     setSaving(true); setError('')
     try {
       const body: SaveCuttingPlanRequest = { id: saveId.current, projectId, input, plan }
-      const response = await fetch('/api/cutting-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const response = await apiFetch('/api/cutting-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || Object.values(data.errors || {}).flat().join(' ') || 'Plán se nepodařilo uložit.')
       const saved = data as SavedCuttingPlan

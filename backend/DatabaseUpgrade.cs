@@ -17,6 +17,14 @@ public static class DatabaseUpgrade
     public static async Task InitializeAsync(AppDb db)
     {
         await db.Database.EnsureCreatedAsync();
+        if (!await HasTable(db, "Users"))
+        {
+            var userScript = db.Database.GenerateCreateScript();
+            foreach (var statement in userScript.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                if (Regex.IsMatch(statement, @"^CREATE TABLE\s+[`""\[]?Users\b|^CREATE UNIQUE INDEX\s+.*\bON\s+[`""\[]?Users\b", RegexOptions.IgnoreCase))
+                    await db.Database.ExecuteSqlRawAsync(statement);
+        }
+        await AppAuthentication.SeedAsync(db);
         if (!await HasTable(db, "SavedCuttingPlans"))
         {
             var create = db.Database.GenerateCreateScript().Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

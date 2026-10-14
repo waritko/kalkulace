@@ -26,6 +26,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     }
 
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<CatalogState> CatalogStates => Set<CatalogState>();
     public DbSet<PricingDefaults> PricingDefaults => Set<PricingDefaults>();
@@ -34,6 +35,11 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AppUser>().Property(u => u.Username).HasMaxLength(100);
+        modelBuilder.Entity<AppUser>().Property(u => u.NormalizedUsername).HasMaxLength(100);
+        modelBuilder.Entity<AppUser>().HasIndex(u => u.NormalizedUsername).IsUnique();
+        modelBuilder.Entity<AppUser>().Property(u => u.PasswordHash).HasMaxLength(512);
+        modelBuilder.Entity<AppUser>().Property(u => u.SecurityStamp).HasMaxLength(36).IsConcurrencyToken();
         modelBuilder.Entity<StockBoard>().Property(b => b.WoodType).HasMaxLength(100);
         modelBuilder.Entity<StockBoard>().Property(b => b.Stage).HasMaxLength(10);
         modelBuilder.Entity<StockBoard>().Property(b => b.IsCut).IsConcurrencyToken();

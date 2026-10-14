@@ -21,3 +21,5 @@ export type CuttingPlanResult = { offcuts: { isKerf: boolean; keepInStock: boole
 
 export type SaveCuttingPlanRequest = { id: string; projectId: number; input: ProjectInput; plan: CuttingPlanResult }
 export type SavedCuttingPlan = SaveCuttingPlanRequest & { savedAt: string }
+export type UserInfo = { id: number; username: string; isAdmin: boolean }
+export type UserRequest = { username: string; password: string; isAdmin: boolean }

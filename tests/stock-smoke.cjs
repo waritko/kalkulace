@@ -1,7 +1,9 @@
+const { authenticatedFetch } = require('./auth-helper.cjs')
+let client
 const assert = require('node:assert/strict')
 const base = `${process.argv[2] || 'http://127.0.0.1:5080'}/api/stock/boards`
 async function api(path = '', body, status = 200) {
-  const response = await fetch(base + path, body === undefined ? undefined : {
+  const response = await client(base + path, body === undefined ? undefined : {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   })
   const text = await response.text()
@@ -9,6 +11,7 @@ async function api(path = '', body, status = 200) {
   return text ? JSON.parse(text) : undefined
 }
 ;(async () => {
+  client = await authenticatedFetch(process.argv[2] || 'http://127.0.0.1:5080')
   const initial = await api()
   const input = { woodType: ' Dub ', widthMm: 300, lengthMm: 3000 }
   for (const invalid of [{ ...input, woodType: '' }, { ...input, widthMm: 0 }, { ...input, lengthMm: 0 }, { ...input, lengthMm: -1 }, { ...input, lengthMm: 2500.5 }])
@@ -47,7 +50,7 @@ async function api(path = '', body, status = 200) {
   assert.deepEqual(customPieces.map(b => b.lengthMm), [1000, 1752])
   // Racing requests must never create four children from the same piece.
   const concurrent = await api('', input, 201)
-  const requests = await Promise.all([1, 2].map(() => fetch(`${base}/${concurrent.id}/cut`, {
+  const requests = await Promise.all([1, 2].map(() => client(`${base}/${concurrent.id}/cut`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ axis: 'length', sizeMm: 1000 })
   })))
   assert.deepEqual(requests.map(r => r.status).sort(), [200, 409])

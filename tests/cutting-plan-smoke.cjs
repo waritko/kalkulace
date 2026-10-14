@@ -1,13 +1,16 @@
+const { authenticatedFetch } = require('./auth-helper.cjs')
+let client
 const assert = require('node:assert/strict')
 const base = `${process.argv[2] || 'http://127.0.0.1:5080'}/api`
 async function api(path, body, status = 200, method = 'POST') {
-  const response = await fetch(base + path, body === undefined ? undefined : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const response = await client(base + path, body === undefined ? undefined : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const text = await response.text()
   assert.equal(response.status, status, text)
   return text ? JSON.parse(text) : undefined
 }
 const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plánu', budgetLimit: 0, nonVatPayer: false, woodReservePercent: 0, materialOverheadPercent: 0, materialMarginPercent: 5, laborMarginPercent: 0, serviceMarginPercent: 15, financeMarginPercent: 15, discountPercent: 0, lamellaLengthExtraMm: 50, lamellaMergeToleranceMm: 50, glueBoardWastePercent: 10, lamellaMinLengthMm: 350, lamellaMinWidthMm: 50, lamellaMaxWidthMm: 110, lamellaWidthLossMm: 4, glueBoardMaxWidthMm: 900, offcutMinWidthMm: 50, offcutMinLengthMm: 350, woodParts: [{ name: 'Police', woodType, widthMm: 200, lengthMm: 500, thicknessMm: 25, quantity: 1, pricePerM3: 10000 }], lines: [], ...overrides })
 ;(async () => {
+  client = await authenticatedFetch(process.argv[2] || 'http://127.0.0.1:5080')
   const wood = `Plan-${Date.now()}`
   const input = project(wood)
   const defaults = await api('/pricing-defaults')
@@ -242,7 +245,7 @@ const project = (woodType, overrides = {}) => ({ name: 'Test nářezového plán
   raceInput.woodParts = raceProject.input.woodParts
   const racePlan = await api('/cutting-plan', raceInput)
   assert.equal(new Set(racePlan.lamellas.map(l => l.boardId)).size, 2)
-  const attempts = await Promise.all([0, 1].map(() => fetch(`${base}/cutting-plans`, {
+  const attempts = await Promise.all([0, 1].map(() => client(`${base}/cutting-plans`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: require('node:crypto').randomUUID(), projectId: raceProject.id, input: raceInput, plan: racePlan })
   })))

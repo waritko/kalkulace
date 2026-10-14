@@ -1,5 +1,7 @@
 ﻿param([string]$BaseUrl = 'http://127.0.0.1:5081')
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'auth-helper.ps1')
+$testSession = New-TestSession $BaseUrl
 $base = "$BaseUrl/api"
 $project = @{
   name = 'Denní záznamy'; customerName = ''; budgetLimit = 0; nonVatPayer = $false
@@ -14,9 +16,9 @@ $project = @{
   )
 }
 $json = [Text.Encoding]::UTF8.GetBytes(($project | ConvertTo-Json -Depth 10))
-$created = Invoke-RestMethod "$base/projects" -Method Post -ContentType 'application/json; charset=utf-8' -Body $json
+$created = Invoke-RestMethod -WebSession $testSession "$base/projects" -Method Post -ContentType 'application/json; charset=utf-8' -Body $json
 try {
-  $loaded = Invoke-RestMethod "$base/projects/$($created.id)"
+  $loaded = Invoke-RestMethod -WebSession $testSession "$base/projects/$($created.id)"
   $labor = @($loaded.input.lines | Where-Object category -eq 'labor')
   $extraction = @($loaded.input.lines | Where-Object { $_.automaticMachineryCharge } | Sort-Object workDate)
   if ($labor.Count -ne 2 -or $labor[0].workDate -ne '2026-10-01' -or $labor[1].workDate -ne '2026-10-02') { throw 'Denní práce se neuložila.' }
@@ -29,7 +31,7 @@ try {
     @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.2; unitPrice = 30; vatRate = 21; workDate = '2026-10-01' },
     @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.2; unitPrice = 30; vatRate = 21; workDate = '2026-10-01' }
   )
-  $fractionalResult = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($fractional | ConvertTo-Json -Depth 10)))
+  $fractionalResult = Invoke-RestMethod -WebSession $testSession "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($fractional | ConvertTo-Json -Depth 10)))
   if ($fractionalResult.laborCost -ne 125 -or $fractionalResult.serviceCost -ne 15) { throw 'Součet času se nezaokrouhlil nahoru po čtvrthodinách.' }
   $acrossDays = $project.Clone()
   $acrossDays.lines = @(
@@ -39,7 +41,7 @@ try {
     @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.1; unitPrice = 30; vatRate = 21; workDate = '2026-10-02'; usesExtraction = $true; usesVacuum = $true }
   )
   $acrossDaysJson = [Text.Encoding]::UTF8.GetBytes(($acrossDays | ConvertTo-Json -Depth 10))
-  $acrossDaysResult = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body $acrossDaysJson
+  $acrossDaysResult = Invoke-RestMethod -WebSession $testSession "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body $acrossDaysJson
   if ($acrossDaysResult.laborCost -ne 250 -or $acrossDaysResult.serviceCost -ne 7.5) { throw 'Mechanizace se musí zaokrouhlit až po součtu všech dní; práce zůstává zaokrouhlená po dnech.' }
   foreach ($name in @('Pokosová pila', 'Odsávání', 'Vysavač')) {
     $timedRows = @($acrossDaysResult.lines | Where-Object name -eq $name)
@@ -53,21 +55,21 @@ try {
     @{ name = 'Hoblovka'; category = 'service'; serviceCategory = 'machinery'; unit = 'hod'; quantity = 0.1; unitPrice = 30; vatRate = 21; workDate = '2026-10-02' },
     @{ name = 'Pokosová pila'; category = 'service'; serviceCategory = 'machinery'; unit = 'ks'; quantity = 0.1; unitPrice = 30; vatRate = 21; workDate = '2026-10-02' }
   )
-  $separateResult = Invoke-RestMethod "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($separateRates | ConvertTo-Json -Depth 10)))
+  $separateResult = Invoke-RestMethod -WebSession $testSession "$base/calculate" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($separateRates | ConvertTo-Json -Depth 10)))
   if ($separateResult.serviceCost -ne 35.5) { throw 'Různé stroje, ceny a DPH se nesmí slučovat; jiné jednotky se nezaokrouhlují.' }
-  $updated = Invoke-RestMethod "$base/projects/$($created.id)" -Method Put -ContentType 'application/json; charset=utf-8' -Body $acrossDaysJson
+  $updated = Invoke-RestMethod -WebSession $testSession "$base/projects/$($created.id)" -Method Put -ContentType 'application/json; charset=utf-8' -Body $acrossDaysJson
   if (@($updated.input.lines | Where-Object quantity -ne 0.1).Count -ne 0 -or $updated.result.serviceCost -ne 7.5) { throw 'Uložení musí zachovat zadaný čas a kalkulovat zaokrouhlený součet dní.' }
   $invoiceRequest = @{
     number = "DAILY-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"; issuedOn = '2026-10-03'; dueOn = '2026-10-17'
     customerName = 'Test'; supplierName = 'Test'
   } | ConvertTo-Json
-  $invoice = Invoke-RestMethod "$base/projects/$($created.id)/invoices" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($invoiceRequest))
-  $snapshot = Invoke-RestMethod "$base/invoices/$($invoice.id)"
+  $invoice = Invoke-RestMethod -WebSession $testSession "$base/projects/$($created.id)/invoices" -Method Post -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($invoiceRequest))
+  $snapshot = Invoke-RestMethod -WebSession $testSession "$base/invoices/$($invoice.id)"
   $snapshotLabor = @($snapshot.result.lines | Where-Object category -eq 'labor')
   if ($snapshotLabor.Count -ne 2 -or $snapshotLabor[0].workDate -ne '2026-10-01' -or $snapshotLabor[1].workDate -ne '2026-10-02') { throw 'Faktura nezachovala denní záznamy.' }
   $snapshotMachinery = @($snapshot.result.lines | Where-Object name -eq 'Pokosová pila')
   if ($snapshot.result.serviceCost -ne 7.5 -or $snapshotMachinery.Count -ne 2 -or $snapshotMachinery[0].quantity -ne 0.1 -or $snapshotMachinery[1].quantity -ne 0.15 -or $snapshotMachinery[0].workDate -ne '2026-10-01' -or $snapshotMachinery[1].workDate -ne '2026-10-02') { throw 'Faktura musí použít mechanizaci zaokrouhlenou až po součtu dní.' }
   Write-Output 'Denní práce a mechanizace: uložení, příplatky, výpočet a faktura OK.'
 } finally {
-  Invoke-RestMethod "$base/projects/$($created.id)" -Method Delete | Out-Null
+  Invoke-RestMethod -WebSession $testSession "$base/projects/$($created.id)" -Method Delete | Out-Null
 }

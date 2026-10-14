@@ -52,6 +52,7 @@ $stdout = Join-Path $output 'api.stdout.log'
 $stderr = Join-Path $output 'api.stderr.log'
 $previousProvider = [Environment]::GetEnvironmentVariable('Database__Provider', 'Process')
 $previousConnection = [Environment]::GetEnvironmentVariable('ConnectionStrings__Sqlite', 'Process')
+$previousTestCookie = [Environment]::GetEnvironmentVariable('KALKULACE_TEST_COOKIE', 'Process')
 $env:Database__Provider = 'Sqlite'
 $env:ConnectionStrings__Sqlite = "Data Source=$database"
 $process = $null
@@ -61,14 +62,23 @@ try {
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
         if ($process.HasExited) { break }
         try {
-            $null = Invoke-RestMethod "$baseUrl/api/catalog" -TimeoutSec 2
+            $null = Invoke-RestMethod "$baseUrl/" -TimeoutSec 2
             $ready = $true
             break
         } catch { Start-Sleep -Milliseconds 500 }
     }
     if (-not $ready) { throw "API did not start at $baseUrl. See $stdout and $stderr." }
+    # Share one admin session between independent suites instead of consuming the login rate limit.
+    . (Join-Path $PSScriptRoot 'auth-helper.ps1')
+    $env:KALKULACE_TEST_COOKIE = $null
+    $session = New-TestSession $baseUrl
+    $env:KALKULACE_TEST_COOKIE = $session.Cookies.GetCookieHeader([Uri]$baseUrl)
 
     $failed = 0
+    if (-not (Invoke-Smoke 'Authentication and admin accounts' {
+        & node (Join-Path $PSScriptRoot 'auth-smoke.cjs') $baseUrl
+        if ($LASTEXITCODE -ne 0) { throw "auth-smoke.cjs exited with code $LASTEXITCODE" }
+    })) { $failed++ }
     if (-not (Invoke-Smoke 'Decimal storage and database upgrade' {
         Invoke-Checked 'dotnet' @('run', '--project', (Join-Path $PSScriptRoot 'DecimalStorage/DecimalStorage.csproj'), '--configuration', 'Release') $root
     })) { $failed++ }
@@ -98,6 +108,7 @@ try {
     }
     [Environment]::SetEnvironmentVariable('Database__Provider', $previousProvider, 'Process')
     [Environment]::SetEnvironmentVariable('ConnectionStrings__Sqlite', $previousConnection, 'Process')
+    [Environment]::SetEnvironmentVariable('KALKULACE_TEST_COOKIE', $previousTestCookie, 'Process')
     for ($attempt = 0; $attempt -lt 5; $attempt++) {
         foreach ($suffix in @('', '-shm', '-wal')) {
             Remove-Item -LiteralPath "$database$suffix" -Force -ErrorAction SilentlyContinue

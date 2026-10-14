@@ -1,3 +1,4 @@
+import { apiFetch } from './auth'
 import { useEffect, useState } from 'react'
 import { Plus, RefreshCw, Scissors, X } from 'lucide-react'
 import type { Catalog } from './types'
@@ -12,7 +13,7 @@ const stageLabels = { original: 'Celá fošna', length: 'Zkrácený kus', width:
 const boardLengths = ['2000', '3000', '4000', '5000']
 
 async function stockApi<T>(path = '', body?: unknown): Promise<T> {
-  const response = await fetch(`/api/stock/boards${path}`, body === undefined ? undefined : {
+  const response = await apiFetch(`/api/stock/boards${path}`, body === undefined ? undefined : {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   })
   if (!response.ok) {

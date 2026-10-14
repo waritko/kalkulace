@@ -1,7 +1,9 @@
+const { authenticatedFetch } = require('./auth-helper.cjs')
+let client
 const assert = require('node:assert/strict')
 const base = `${process.argv[2] || 'http://127.0.0.1:5080'}/api`
 async function api(path, method = 'GET', body) {
-  const response = await fetch(base + path, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
+  const response = await client(base + path, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
   assert.ok(response.ok, `${method} ${path}: ${response.status} ${await (!response.ok ? response.text() : Promise.resolve(''))}`)
   return response.json()
 }
@@ -10,6 +12,7 @@ const input = { name: 'Převoz fošen', customerName: '', budgetLimit: 0, nonVat
   financeMarginPercent: 0, discountPercent: 0, lines: [], lamellaLengthExtraMm: 0,
   woodParts: [{ name: 'Díl', woodType: 'Dub', widthMm: 200, lengthMm: 1600, thicknessMm: 25, quantity: 1, pricePerM3: 21900 }] }
 ;(async () => {
+  client = await authenticatedFetch(process.argv[2] || 'http://127.0.0.1:5080')
   const initial = await api('/calculate', 'POST', input)
   const cuts = initial.glueBoardPurchase[0].transportCuts
   assert.deepEqual(cuts.map(c => c.boardLengthMm), [3000, 4000, 5000])
@@ -48,7 +51,7 @@ const input = { name: 'Převoz fošen', customerName: '', budgetLimit: 0, nonVat
   assert.equal(changed.woodVolumeM3, initial.woodVolumeM3)
   const created = await api('/projects', 'POST', { ...input, transportMaxLengthMm: 2000 })
   try { assert.equal((await api(`/projects/${created.id}`)).input.transportMaxLengthMm, 2000) }
-  finally { await fetch(`${base}/projects/${created.id}`, { method: 'DELETE' }) }
+  finally { await client(`${base}/projects/${created.id}`, { method: 'DELETE' }) }
   const defaults = await api('/pricing-defaults')
   assert.equal(defaults.transportMaxLengthMm, 2700)
   try {
@@ -56,7 +59,7 @@ const input = { name: 'Převoz fošen', customerName: '', budgetLimit: 0, nonVat
     assert.equal((await api('/pricing-defaults')).transportMaxLengthMm, 2300)
   } finally { await api('/pricing-defaults', 'PUT', defaults) }
   for (const bad of [0, -1, 20, 2700.5]) {
-    const response = await fetch(`${base}/calculate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, transportMaxLengthMm: bad }) })
+    const response = await client(`${base}/calculate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, transportMaxLengthMm: bad }) })
     assert.equal(response.status, 400)
   }
   console.log('Transport cuts, 20 mm kerf, capacity, settings and persistence passed')

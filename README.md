@@ -1,6 +1,16 @@
 # Kalkulace pro truhlářské zakázky
 
-Webová aplikace podle `kalkulace.xlsx`. Backend je ASP.NET Core 9, frontend React + TypeScript a výchozí databáze SQLite. Přihlášení aplikace neřeší; nasazení předpokládá ověření na HTTP proxy.
+Webová aplikace podle `kalkulace.xlsx`. Backend je ASP.NET Core 9, frontend React + TypeScript a výchozí databáze SQLite. Přístup vyžaduje přihlášení; účty mají roli uživatele nebo administrátora.
+
+## Přihlášení a správa uživatelů
+
+Při prvním spuštění nad novou i existující databází aplikace doplní tabulku `Users` a založí administrátora `waritko` s počátečním heslem předaným při zadání projektu. Heslo je uloženo jako osolený PBKDF2 hash. Další spuštění účty ani změněná hesla nepřepisují.
+
+Administrátor má v nabídce stránku **Uživatelé**: přidává a odstraňuje účty, mění jména, nastavuje nová hesla a přiděluje roli **Administrátor**. Nové heslo musí mít 8–128 znaků; při úpravě účtu prázdné pole zachová současné heslo. Uživatelská jména se porovnávají bez ohledu na velikost písmen. Posledního administrátora nelze smazat ani mu odebrat roli. Změna nebo odstranění účtu zneplatní jeho dosavadní relace; při úpravě vlastního účtu se přihlaste znovu. Tlačítko **Odhlásit se** je v postranním panelu.
+
+Pouze administrátor mění společný **Ceník** a **Výchozí nastavení ceny**. Oprávnění kontroluje i API. Běžní uživatelé pracují se sdílenými zakázkami, fakturami a skladem; ceník a výchozí hodnoty se jim načítají pro kalkulace. Individuální ceny a nastavení v zakázce lze nadále upravovat. Zakázky ani sklad nejsou rozděleny podle vlastníka účtu.
+
+Přihlášení používá šifrovanou HttpOnly cookie s platností 8 hodin a `SameSite=Strict`. Pro síťové nasazení použijte HTTPS na proxy; cookie při HTTPS dostává příznak Secure. Proxy na loopback adrese předává schéma přes `X-Forwarded-Proto`; jinou adresu proxy je nutné explicitně přidat mezi důvěryhodné proxy v konfiguraci middleware `UseForwardedHeaders`. Klíče ASP.NET Core Data Protection musí zůstat dostupné aplikačnímu účtu, pokud mají přihlášení přežít restart. Přihlašování povoluje nejvýše 10 pokusů za minutu z jedné IP adresy (za proxy se standardně jedná o adresu proxy). Zápisové požadavky API, včetně přihlášení a odhlášení, vyžadují hlavičku `X-Kalkulace-Request: 1`; frontend ji přidává automaticky. Ostatní API vyžaduje přihlašovací cookie; nepřihlášený klient dostane 401, nedostatečné oprávnění 403.
 
 ## Spuštění
 
@@ -111,7 +121,7 @@ dotnet build backend/Kalkulace.Api.csproj
 cd frontend; npm run build
 ```
 
-Při běžícím backendu lze spustit `./tests/api-smoke.ps1`. Test ověřuje vzorový výpočet, uložení zakázky a neměnnost vystavené faktury.
+Při běžícím backendu lze spustit `./tests/api-smoke.ps1`. Test se přihlásí a ověří vzorový výpočet, uložení zakázky a neměnnost vystavené faktury. Samostatné smoke testy používají počáteční administrátorský účet; po změně přihlašovacích údajů nastavte `KALKULACE_TEST_USERNAME` a `KALKULACE_TEST_PASSWORD`. `tests/auth-smoke.cjs` ověřuje přihlášení, role, správu účtů, změny hesel, zneplatnění relací, ochranu posledního administrátora, odhlášení a omezení pokusů. Tento test spouštějte proti dočasné databázi: mění testovací účty i ceník a dočasně vyčerpá limit přihlášení. `ci.ps1` sdílí jednu relaci administrátora mezi testy a používá dočasnou SQLite databázi.
 
 ## TeamCity
 

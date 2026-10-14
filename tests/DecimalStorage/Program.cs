@@ -13,6 +13,8 @@ using (var mysql = new AppDb(new DbContextOptionsBuilder<AppDb>()
     .UseMySql("Server=localhost;Database=precision;User=test", new MySqlServerVersion(new Version(8, 0, 36))).Options))
 {
     var script = mysql.Database.GenerateCreateScript();
+    if (!script.Contains("CREATE TABLE `Users`") || !script.Contains("CREATE UNIQUE INDEX `IX_Users_NormalizedUsername`"))
+        throw new Exception("MySQL user table or unique username index missing");
     foreach (var entity in mysql.Model.GetEntityTypes())
         foreach (var property in entity.GetProperties())
             if (DecimalStorage.Scale(property) is int scale)
@@ -71,7 +73,12 @@ await db.Database.ExecuteSqlRawAsync("UPDATE CatalogWood SET Price32 = '1234.565
 await db.Database.ExecuteSqlRawAsync("UPDATE InvoiceCalculation SET BudgetDifference = '-12.345', BudgetUsagePercent = '51.25'");
 await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProjectDetails DROP COLUMN TransportMaxLengthMm");
 await db.Database.ExecuteSqlRawAsync("ALTER TABLE PricingDefaults DROP COLUMN TransportMaxLengthMm");
+await db.Database.ExecuteSqlRawAsync("DROP TABLE Users");
 await DatabaseUpgrade.InitializeAsync(db);
+var seededUser = await db.Users.SingleAsync();
+if (!seededUser.IsAdmin || seededUser.Username != "waritko") throw new Exception("Existing SQLite database did not gain its admin account");
+seededUser.PasswordHash = "changed-hash";
+await db.SaveChangesAsync();
 var loaded = await db.Projects.Include(p => p.Details).Include(p => p.WoodParts).Include(p => p.Lines).SingleAsync();
 Equal(1000m, loaded.Details.BudgetLimit, "upgraded budget");
 Equal(7.9m, loaded.Details.WoodReservePercent, "upgraded percentage");
@@ -96,6 +103,7 @@ if (savedInvoice.Lines[0].BoardThicknessMm is not null) throw new Exception("Nul
 if (loaded.WoodParts[0].PartId is null) throw new Exception("Production identifiers were not upgraded");
 var snapshot = JsonSerializer.Serialize(savedInvoice.ToCalculation());
 await DatabaseUpgrade.InitializeAsync(db);
+if ((await db.Users.SingleAsync()).PasswordHash != "changed-hash") throw new Exception("Repeated startup reset an existing password");
 loaded.Details.BudgetLimit = 543.215m;
 db.Update(loaded);
 await db.SaveChangesAsync();

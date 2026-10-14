@@ -1,8 +1,10 @@
 using Kalkulace.Api;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddAppAuthentication();
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 var provider = builder.Configuration["Database:Provider"] ?? "Sqlite";
@@ -26,6 +28,8 @@ else throw new InvalidOperationException("Database:Provider must be Sqlite or My
 
 builder.Services.AddCors(options => options.AddPolicy("dev", policy => policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173").AllowAnyHeader().AllowAnyMethod()));
 var app = builder.Build();
+// Only the framework's trusted loopback proxies can forward the HTTPS scheme.
+app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedProto });
 app.UseCors("dev");
 var staticRoot = new[] { Path.Combine(app.Environment.ContentRootPath, "wwwroot"), Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "frontend", "dist")) }.FirstOrDefault(path => File.Exists(Path.Combine(path, "index.html")));
 if (staticRoot is not null)
@@ -38,14 +42,32 @@ if (staticRoot is not null)
         if (context.Request.Path.StartsWithSegments("/api")) { context.Response.StatusCode = 404; return; }
         context.Response.ContentType = "text/html; charset=utf-8";
         await context.Response.SendFileAsync(Path.Combine(staticRoot, "index.html"));
-    });
+    }).AllowAnonymous();
 }
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
+// A custom header on every API mutation blocks cross-origin form submissions.
+// CORS only permits the development frontend; production uses the same origin.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api")
+        && context.Request.Method is not ("GET" or "HEAD" or "OPTIONS")
+        && context.Request.Headers["X-Kalkulace-Request"] != "1")
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsJsonAsync(new { error = "Chybí bezpečnostní hlavička požadavku." });
+        return;
+    }
+    await next(context);
+});
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDb>();
     await DatabaseUpgrade.InitializeAsync(db);
 }
 
+app.MapAppAuthentication();
 app.MapGet("/api/catalog", async (AppDb db) =>
 {
     return await LoadCatalog(db);
@@ -69,7 +91,7 @@ app.MapPut("/api/pricing-defaults", async (PricingDefaults defaults, AppDb db) =
     else db.Entry(current).CurrentValues.SetValues(defaults);
     await db.SaveChangesAsync();
     return Results.Ok(defaults);
-});
+}).RequireAuthorization("admin");
 app.MapPut("/api/catalog", async (CatalogData data, AppDb db) =>
 {
     var errors = CatalogValidator.Validate(data);
@@ -90,7 +112,7 @@ app.MapPut("/api/catalog", async (CatalogData data, AppDb db) =>
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
     return Results.Ok(normalized);
-});
+}).RequireAuthorization("admin");
 app.MapGet("/api/projects", async (AppDb db) =>
 {
     var projects = await db.Projects.Select(p => new ProjectListItem(p.Id, p.Name, p.CustomerName, p.UpdatedAt)).ToListAsync();
